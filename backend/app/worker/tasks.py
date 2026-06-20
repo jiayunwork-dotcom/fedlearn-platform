@@ -5,6 +5,8 @@ from datetime import datetime
 
 import redis
 
+from sqlalchemy.orm import joinedload
+
 from app.worker.celery_app import celery_app
 from app.config import settings
 from app.database import SessionLocal
@@ -53,12 +55,32 @@ def run_experiment_task(self, experiment_id: int, config: dict):
 
     db = SessionLocal()
     try:
-        exp = db.query(models.Experiment).filter(
+        exp = db.query(models.Experiment).options(
+            joinedload(models.Experiment.partition).joinedload(models.Partition.dataset)
+        ).filter(
             models.Experiment.id == experiment_id
         ).first()
         if not exp:
             logger.error(f"[{task_id}] Experiment #{experiment_id} not found")
             return {"status": "error", "message": "Experiment not found"}
+
+        if exp.partition is not None:
+            config['partition_id'] = exp.partition.id
+            config['partition_distribution_matrix'] = exp.partition.distribution_matrix
+            if exp.partition.dataset is not None:
+                config['feature_dim'] = exp.partition.dataset.feature_dim
+                config['num_classes'] = exp.partition.dataset.num_classes
+        else:
+            dataset_name = config.get('dataset_name', '')
+            if dataset_name not in ['mnist', 'cifar10']:
+                registered_dataset = (
+                    db.query(models.Dataset)
+                    .filter(models.Dataset.name == dataset_name)
+                    .first()
+                )
+                if registered_dataset is not None:
+                    config['feature_dim'] = registered_dataset.feature_dim
+                    config['num_classes'] = registered_dataset.num_classes
 
         exp.celery_task_id = task_id
         exp.status = "running"

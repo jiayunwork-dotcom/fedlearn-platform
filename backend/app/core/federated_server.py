@@ -10,7 +10,10 @@ import os
 from app.models.nn_models import (
     create_model, get_model_params, set_model_params, get_model_size_bytes
 )
-from app.core.dataset_loader import load_dataset, create_client_dataloaders, create_test_loader
+from app.core.dataset_loader import (
+    load_dataset, create_client_dataloaders, create_test_loader,
+    create_client_dataloaders_from_matrix
+)
 from app.core.federated_client import FedClient, evaluate_model
 from app.core.secure_aggregation import SecureAggregator
 from app.core.byzantine import ByzantineAttack, RobustAggregator
@@ -37,6 +40,10 @@ class FedServer:
 
         self.dataset_name = config['dataset_name']
         self.model_name = config['model_name']
+        self.feature_dim = config.get('feature_dim', None)
+        self.num_classes = config.get('num_classes', 10)
+        self.partition_id = config.get('partition_id', None)
+        self.partition_distribution_matrix = config.get('partition_distribution_matrix', None)
         self.num_clients = config['num_clients']
         self.num_rounds = config['num_rounds']
         self.client_sample_rate = config.get('client_sample_rate', 1.0)
@@ -212,21 +219,33 @@ class FedServer:
             self._send_progress("initializing")
 
             self._log(f"Loading {self.dataset_name} dataset...")
-            self.train_dataset, test_dataset = load_dataset(self.dataset_name)
+            self.train_dataset, test_dataset = load_dataset(
+                self.dataset_name,
+                feature_dim=self.feature_dim
+            )
 
-            num_classes = 10
+            num_classes = self.num_classes
             self.global_model = create_model(self.model_name, self.dataset_name, num_classes)
             self.global_params = get_model_params(self.global_model)
             self.test_loader = create_test_loader(test_dataset)
 
-            self._log(f"Creating {self.num_clients} clients with mode={self.non_iid_mode}...")
-            client_loaders, self.client_dist_stats, _ = create_client_dataloaders(
-                self.train_dataset,
-                self.num_clients,
-                self.non_iid_mode,
-                self.non_iid_alpha,
-                self.batch_size
-            )
+            if self.partition_distribution_matrix is not None:
+                self._log(f"Using pre-defined partition #{self.partition_id} for client data allocation...")
+                client_loaders, self.client_dist_stats = create_client_dataloaders_from_matrix(
+                    self.train_dataset,
+                    self.partition_distribution_matrix,
+                    num_classes,
+                    self.batch_size
+                )
+            else:
+                self._log(f"Creating {self.num_clients} clients with mode={self.non_iid_mode}...")
+                client_loaders, self.client_dist_stats, _ = create_client_dataloaders(
+                    self.train_dataset,
+                    self.num_clients,
+                    self.non_iid_mode,
+                    self.non_iid_alpha,
+                    self.batch_size
+                )
 
             for cid, loader in client_loaders.items():
                 client_model = create_model(self.model_name, self.dataset_name, num_classes)
