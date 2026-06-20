@@ -113,7 +113,7 @@ class FedServer:
                 pass
         if self.redis_callback:
             try:
-                self.redis_callback(f"experiment:{self.experiment_id}:progress", data)
+                self.redis_callback(f"experiment:{self.experiment_id}:ws", data)
             except Exception:
                 pass
 
