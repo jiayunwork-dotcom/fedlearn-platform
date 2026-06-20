@@ -4,18 +4,16 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
   TextField, FormControl, InputLabel, Select, MenuItem, Grid,
   Stack, Switch, FormControlLabel, Slider, Typography, Divider,
-  Box, Chip, Alert, Tabs, Tab, Card, CardContent, CardActionArea
+  Box, Chip, Alert, Tabs, Tab, Card, CardContent, CardActionArea,
+  RadioGroup, FormControlLabel as RadioLabel, Radio, InputAdornment,
+  Tooltip, IconButton
 } from '@mui/material'
-import { experimentApi } from '../services/api'
+import InfoIcon from '@mui/icons-material/Info'
+import { experimentApi, datasetApi } from '../services/api'
 
 const ALGORITHMS = [
   { value: 'fedavg', label: 'FedAvg (联邦平均)' },
   { value: 'fedprox', label: 'FedProx (近端约束)' },
-]
-
-const DATASETS = [
-  { value: 'mnist', label: 'MNIST (手写数字)' },
-  { value: 'cifar10', label: 'CIFAR-10 (彩色图像)' },
 ]
 
 const MODELS = [
@@ -70,9 +68,22 @@ const DEFAULT_CONFIG = {
   robust_aggregation: 'none',
   dataset_name: 'mnist',
   model_name: 'mlp',
+  partition_id: null,
 }
 
 const TEMPLATE_COLORS = ['#1976d2', '#7b1fa2', '#ed6c02', '#d32f2f', '#2e7d32']
+
+const PARTITION_MODE_TEXT = {
+  iid: 'IID 均匀分布',
+  dirichlet: 'Dirichlet 分布',
+  label_skew: 'Label Skew 按标签划分',
+}
+
+const NON_IID_FROM_PARTITION = {
+  iid: 'iid',
+  dirichlet: 'quantity_skew',
+  label_skew: 'label_skew',
+}
 
 export default function CreateExperimentModal({ open, onClose }) {
   const navigate = useNavigate()
@@ -83,13 +94,86 @@ export default function CreateExperimentModal({ open, onClose }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
+  const [datasets, setDatasets] = useState([])
+  const [selectedDatasetId, setSelectedDatasetId] = useState(null)
+  const [partitions, setPartitions] = useState([])
+  const [usePartition, setUsePartition] = useState(false)
+  const [selectedPartitionId, setSelectedPartitionId] = useState(null)
+  const [loadingDatasets, setLoadingDatasets] = useState(false)
+  const [loadingPartitions, setLoadingPartitions] = useState(false)
+
   useEffect(() => {
     if (open) {
       experimentApi.getTemplates().then(res => {
         setTemplates(res.data)
       }).catch(() => {})
+      loadDatasets()
     }
   }, [open])
+
+  const loadDatasets = async () => {
+    try {
+      setLoadingDatasets(true)
+      const res = await datasetApi.list({ limit: 200 })
+      setDatasets(res.data.datasets)
+    } catch (e) {
+      console.error('Failed to load datasets:', e)
+    } finally {
+      setLoadingDatasets(false)
+    }
+  }
+
+  const loadPartitions = async (datasetId) => {
+    try {
+      setLoadingPartitions(true)
+      const res = await datasetApi.listPartitions(datasetId)
+      setPartitions(res.data.partitions)
+    } catch (e) {
+      console.error('Failed to load partitions:', e)
+      setPartitions([])
+    } finally {
+      setLoadingPartitions(false)
+    }
+  }
+
+  const handleDatasetChange = (datasetId) => {
+    const dataset = datasets.find(d => d.id === datasetId)
+    setSelectedDatasetId(datasetId)
+    setConfig(prev => ({
+      ...prev,
+      dataset_name: dataset ? dataset.name.toLowerCase().replace(/[^a-z0-9]/g, '') : 'mnist',
+    }))
+    setUsePartition(false)
+    setSelectedPartitionId(null)
+    setConfig(prev => ({ ...prev, partition_id: null }))
+    if (datasetId) {
+      loadPartitions(datasetId)
+    } else {
+      setPartitions([])
+    }
+  }
+
+  const handleUsePartitionChange = (use) => {
+    setUsePartition(use)
+    if (!use) {
+      setSelectedPartitionId(null)
+      setConfig(prev => ({ ...prev, partition_id: null }))
+    }
+  }
+
+  const handlePartitionSelect = (partitionId) => {
+    setSelectedPartitionId(partitionId)
+    const partition = partitions.find(p => p.id === partitionId)
+    if (partition) {
+      setConfig(prev => ({
+        ...prev,
+        partition_id: partitionId,
+        num_clients: partition.num_clients,
+        non_iid_mode: NON_IID_FROM_PARTITION[partition.mode] || 'iid',
+        non_iid_alpha: partition.alpha || prev.non_iid_alpha,
+      }))
+    }
+  }
 
   const handleTabChange = (_, newValue) => {
     setTabValue(newValue)
@@ -137,7 +221,11 @@ export default function CreateExperimentModal({ open, onClose }) {
     try {
       setSubmitting(true)
       setError(null)
-      const res = await experimentApi.create(config)
+      const submitConfig = { ...config }
+      if (!submitConfig.partition_id) {
+        delete submitConfig.partition_id
+      }
+      const res = await experimentApi.create(submitConfig)
       const expId = res.data.id
 
       if (config.non_iid_mode !== 'iid') {
@@ -162,8 +250,242 @@ export default function CreateExperimentModal({ open, onClose }) {
       setSelectedTemplateId(null)
       setConfig({ ...DEFAULT_CONFIG, name: `FedAvg实验_${new Date().toISOString().slice(0, 16).replace('T', '_')}` })
       setError(null)
+      setSelectedDatasetId(null)
+      setPartitions([])
+      setUsePartition(false)
+      setSelectedPartitionId(null)
       onClose()
     }
+  }
+
+  const getPartitionDescription = (p) => {
+    const parts = [`${p.num_clients} 客户端`]
+    if (p.mode === 'dirichlet') {
+      parts.push(`α=${p.alpha}`)
+    } else if (p.mode === 'label_skew') {
+      parts.push(`每客户端 ${p.labels_per_client} 类`)
+    }
+    return parts.join(' · ')
+  }
+
+  const renderDatasetAndPartitionSection = () => (
+    <>
+      <Grid item xs={12}>
+        <Divider sx={{ my: 1 }}>
+          <Chip label="数据集与分片方案" size="small" color="primary" variant="outlined" />
+        </Divider>
+      </Grid>
+
+      <Grid item xs={12} sm={6}>
+        <FormControl fullWidth>
+          <InputLabel>选择数据集</InputLabel>
+          <Select
+            value={selectedDatasetId || ''}
+            label="选择数据集"
+            onChange={(e) => handleDatasetChange(e.target.value || null)}
+          >
+            <MenuItem value="">
+              <em>内置数据集</em>
+            </MenuItem>
+            {datasets.map(d => (
+              <MenuItem key={d.id} value={d.id}>
+                {d.name} ({d.num_samples}样本, {d.num_classes}类)
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Grid>
+
+      {!selectedDatasetId && (
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth>
+            <InputLabel>内置数据集</InputLabel>
+            <Select value={config.dataset_name} label="内置数据集" onChange={(e) => handleChange('dataset_name', e.target.value)}>
+              <MenuItem value="mnist">MNIST (手写数字)</MenuItem>
+              <MenuItem value="cifar10">CIFAR-10 (彩色图像)</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+      )}
+
+      {selectedDatasetId && (
+        <Grid item xs={12}>
+          <Card variant="outlined" sx={{ bgcolor: '#fafbff' }}>
+            <CardContent>
+              <Stack direction="row" spacing={2} alignItems="flex-start">
+                <FormControl>
+                  <RadioGroup
+                    row
+                    value={usePartition ? 'partition' : 'manual'}
+                    onChange={(e) => handleUsePartitionChange(e.target.value === 'partition')}
+                  >
+                    <RadioLabel
+                      value="manual"
+                      control={<Radio size="small" />}
+                      label="手动配置 Non-IID 参数"
+                    />
+                    <RadioLabel
+                      value="partition"
+                      control={<Radio size="small" />}
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          使用已注册的分片方案
+                          <Tooltip title="选择已有的分片方案，自动填充客户端数、分布模式等参数">
+                            <IconButton size="small" sx={{ p: 0 }}>
+                              <InfoIcon fontSize="inherit" color="info" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      }
+                    />
+                  </RadioGroup>
+                </FormControl>
+              </Stack>
+
+              {usePartition && (
+                <Box sx={{ mt: 2 }}>
+                  {loadingPartitions ? (
+                    <Typography variant="body2" color="text.secondary">加载分片方案中...</Typography>
+                  ) : partitions.length === 0 ? (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      该数据集下暂无分片方案，请先到「数据集管理」中创建分片方案。
+                    </Alert>
+                  ) : (
+                    <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
+                      {partitions.map((p) => (
+                        <Grid item xs={12} sm={6} md={4} key={p.id}>
+                          <Card
+                            variant="outlined"
+                            onClick={() => handlePartitionSelect(p.id)}
+                            sx={{
+                              cursor: 'pointer',
+                              borderColor: selectedPartitionId === p.id ? 'primary.main' : 'divider',
+                              borderWidth: selectedPartitionId === p.id ? 2 : 1,
+                              bgcolor: selectedPartitionId === p.id ? 'primary.lighter' : 'background.paper',
+                              transition: 'all 0.2s',
+                              '&:hover': { borderColor: 'primary.light', boxShadow: 1 }
+                            }}
+                          >
+                            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                                <Chip
+                                  label={PARTITION_MODE_TEXT[p.mode] || p.mode}
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                                <Typography variant="caption" color="text.secondary">
+                                  #{p.id}
+                                </Typography>
+                              </Stack>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                {getPartitionDescription(p)}
+                              </Typography>
+                              {selectedPartitionId === p.id && (
+                                <Chip
+                                  label="已选择"
+                                  size="small"
+                                  color="success"
+                                  sx={{ mt: 1, height: 20, fontSize: 11 }}
+                                />
+                              )}
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  )}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      )}
+
+      <Grid item xs={12} sm={6}>
+        <FormControl fullWidth>
+          <InputLabel>模型</InputLabel>
+          <Select value={config.model_name} label="模型" onChange={(e) => handleChange('model_name', e.target.value)}>
+            {MODELS.map(m => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
+          </Select>
+        </FormControl>
+      </Grid>
+    </>
+  )
+
+  const renderNonIidSection = () => {
+    if (usePartition && selectedPartitionId) {
+      const partition = partitions.find(p => p.id === selectedPartitionId)
+      if (!partition) return null
+      return (
+        <Grid item xs={12}>
+          <Divider sx={{ my: 1 }}>
+            <Chip label="非IID数据分布 (来自分片方案)" size="small" color="warning" variant="outlined" />
+          </Divider>
+          <Alert severity="info" sx={{ mt: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              已使用分片方案 #{partition.id} 的配置
+            </Typography>
+            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+              <Grid item xs={4}>
+                <Typography variant="caption" color="text.secondary">分布模式</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {PARTITION_MODE_TEXT[partition.mode] || partition.mode}
+                </Typography>
+              </Grid>
+              <Grid item xs={4}>
+                <Typography variant="caption" color="text.secondary">客户端数</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {partition.num_clients}
+                </Typography>
+              </Grid>
+              <Grid item xs={4}>
+                <Typography variant="caption" color="text.secondary">
+                  {partition.mode === 'dirichlet' ? 'Alpha 值' : partition.mode === 'label_skew' ? '每客户端标签数' : '参数'}
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {partition.mode === 'dirichlet'
+                    ? `α=${partition.alpha}`
+                    : partition.mode === 'label_skew'
+                      ? `${partition.labels_per_client} 类`
+                      : '-'}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Alert>
+        </Grid>
+      )
+    }
+
+    return (
+      <>
+        <Grid item xs={12}>
+          <Divider sx={{ my: 1 }}>
+            <Chip label="非IID数据分布" size="small" color="warning" variant="outlined" />
+          </Divider>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth>
+            <InputLabel>非IID模式</InputLabel>
+            <Select value={config.non_iid_mode} label="非IID模式" onChange={(e) => handleChange('non_iid_mode', e.target.value)}>
+              {NON_IID_MODES.map(m => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <Box>
+            <Typography gutterBottom>
+              {config.non_iid_mode === 'iid' ? '参数未启用' : `偏斜程度 α: ${config.non_iid_alpha}`}
+            </Typography>
+            <Slider value={config.non_iid_alpha} min={0.01} max={5} step={0.01} disabled={config.non_iid_mode === 'iid'}
+              onChange={(_, v) => handleChange('non_iid_alpha', v)} />
+            {config.non_iid_mode !== 'iid' && (
+              <Typography variant="caption" color="text.secondary">α越小偏斜越严重 (0.01=极端偏斜, 5=近似IID)</Typography>
+            )}
+          </Box>
+        </Grid>
+      </>
+    )
   }
 
   const renderConfigForm = () => (
@@ -187,28 +509,7 @@ export default function CreateExperimentModal({ open, onClose }) {
         />
       </Grid>
 
-      <Grid item xs={12}>
-        <Divider sx={{ my: 1 }}>
-          <Chip label="数据集与模型" size="small" color="primary" variant="outlined" />
-        </Divider>
-      </Grid>
-
-      <Grid item xs={12} sm={6}>
-        <FormControl fullWidth>
-          <InputLabel>数据集</InputLabel>
-          <Select value={config.dataset_name} label="数据集" onChange={(e) => handleChange('dataset_name', e.target.value)}>
-            {DATASETS.map(d => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
-          </Select>
-        </FormControl>
-      </Grid>
-      <Grid item xs={12} sm={6}>
-        <FormControl fullWidth>
-          <InputLabel>模型</InputLabel>
-          <Select value={config.model_name} label="模型" onChange={(e) => handleChange('model_name', e.target.value)}>
-            {MODELS.map(m => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
-          </Select>
-        </FormControl>
-      </Grid>
+      {renderDatasetAndPartitionSection()}
 
       <Grid item xs={12}>
         <Divider sx={{ my: 1 }}>
@@ -217,8 +518,15 @@ export default function CreateExperimentModal({ open, onClose }) {
       </Grid>
 
       <Grid item xs={12} sm={4}>
-        <TextField fullWidth type="number" label="客户端数量 (4-20)" value={config.num_clients}
-          InputProps={{ inputProps: { min: 4, max: 20 } }} onChange={(e) => handleChange('num_clients', parseInt(e.target.value) || 10)} />
+        <TextField
+          fullWidth
+          type="number"
+          label="客户端数量 (4-20)"
+          value={config.num_clients}
+          InputProps={{ inputProps: { min: 4, max: 20 } }}
+          onChange={(e) => handleChange('num_clients', parseInt(e.target.value) || 10)}
+          disabled={usePartition && selectedPartitionId}
+        />
       </Grid>
       <Grid item xs={12} sm={4}>
         <TextField fullWidth type="number" label="通信轮次" value={config.num_rounds}
@@ -323,31 +631,7 @@ export default function CreateExperimentModal({ open, onClose }) {
         </>
       )}
 
-      <Grid item xs={12}>
-        <Divider sx={{ my: 1 }}>
-          <Chip label="非IID数据分布" size="small" color="warning" variant="outlined" />
-        </Divider>
-      </Grid>
-      <Grid item xs={12} sm={6}>
-        <FormControl fullWidth>
-          <InputLabel>非IID模式</InputLabel>
-          <Select value={config.non_iid_mode} label="非IID模式" onChange={(e) => handleChange('non_iid_mode', e.target.value)}>
-            {NON_IID_MODES.map(m => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
-          </Select>
-        </FormControl>
-      </Grid>
-      <Grid item xs={12} sm={6}>
-        <Box>
-          <Typography gutterBottom>
-            {config.non_iid_mode === 'iid' ? '参数未启用' : `偏斜程度 α: ${config.non_iid_alpha}`}
-          </Typography>
-          <Slider value={config.non_iid_alpha} min={0.01} max={5} step={0.01} disabled={config.non_iid_mode === 'iid'}
-            onChange={(_, v) => handleChange('non_iid_alpha', v)} />
-          {config.non_iid_mode !== 'iid' && (
-            <Typography variant="caption" color="text.secondary">α越小偏斜越严重 (0.01=极端偏斜, 5=近似IID)</Typography>
-          )}
-        </Box>
-      </Grid>
+      {renderNonIidSection()}
 
       <Grid item xs={12}>
         <Divider sx={{ my: 1 }}>
@@ -451,7 +735,16 @@ export default function CreateExperimentModal({ open, onClose }) {
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
         <Button onClick={handleClose} disabled={submitting}>取消</Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={submitting || !config.name || (tabValue === 1 && !selectedTemplateId)}>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={
+            submitting ||
+            !config.name ||
+            (tabValue === 1 && !selectedTemplateId) ||
+            (usePartition && !selectedPartitionId)
+          }
+        >
           {submitting ? '创建中...' : '创建并启动实验'}
         </Button>
       </DialogActions>

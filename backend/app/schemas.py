@@ -34,12 +34,23 @@ class ExperimentConfigBase(BaseModel):
     byzantine_attack: str = Field("random", pattern="^(random|scale|zero)$")
     robust_aggregation: str = Field("none", pattern="^(none|krum|trimmed_mean|median)$")
 
-    dataset_name: str = Field("mnist", pattern="^(mnist|cifar10)$")
+    dataset_name: str = Field("mnist", max_length=100)
     model_name: str = Field("mlp", pattern="^(mlp|cnn|resnet)$")
 
 
 class ExperimentCreate(ExperimentConfigBase):
-    pass
+    partition_id: Optional[int] = Field(None, description="关联的分片方案ID")
+
+
+class PartitionInfo(BaseModel):
+    id: int
+    mode: str
+    num_clients: int
+    alpha: Optional[float]
+    labels_per_client: Optional[int]
+
+    class Config:
+        from_attributes = True
 
 
 class ExperimentResponse(BaseModel):
@@ -82,6 +93,7 @@ class ExperimentResponse(BaseModel):
     created_at: datetime
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
+    partition: Optional[PartitionInfo] = None
 
     class Config:
         from_attributes = True

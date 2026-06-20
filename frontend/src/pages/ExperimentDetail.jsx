@@ -277,6 +277,63 @@ export default function ExperimentDetail() {
             <Chip label={`FedProx μ=${experiment.fedprox_mu}`} size="small" />
           )}
         </Stack>
+
+        {experiment.partition && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Card variant="outlined" sx={{ borderColor: 'primary.light', bgcolor: '#fafbff' }}>
+              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Box sx={{ width: 6, height: 24, bgcolor: 'primary.main', borderRadius: 1 }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                    关联分片方案
+                  </Typography>
+                  <Chip
+                    label={`#${experiment.partition.id}`}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                    sx={{ ml: 'auto' }}
+                  />
+                </Stack>
+                <Grid container spacing={3}>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="caption" color="text.secondary">分布模式</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {({
+                        iid: 'IID 均匀分布',
+                        dirichlet: 'Dirichlet 分布',
+                        label_skew: 'Label Skew 按标签划分',
+                      })[experiment.partition.mode] || experiment.partition.mode}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="caption" color="text.secondary">客户端数</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {experiment.partition.num_clients}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="caption" color="text.secondary">Alpha 参数</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {experiment.partition.alpha !== null && experiment.partition.alpha !== undefined
+                        ? `α=${experiment.partition.alpha}`
+                        : '-'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="caption" color="text.secondary">每客户端标签数</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {experiment.partition.labels_per_client
+                        ? `${experiment.partition.labels_per_client} 类`
+                        : '-'}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </Paper>
 
       <Grid container spacing={3}>

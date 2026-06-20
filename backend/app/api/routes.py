@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 import logging
 
@@ -211,17 +211,44 @@ def _get_tasks():
         return None, None
 
 
+def _partition_mode_to_non_iid_mode(mode: str) -> str:
+    mode_map = {
+        "iid": "iid",
+        "dirichlet": "quantity_skew",
+        "label_skew": "label_skew",
+    }
+    return mode_map.get(mode, "iid")
+
+
 @router.post("", response_model=schemas.ExperimentResponse)
 def create_experiment(
     config: schemas.ExperimentCreate,
     db: Session = Depends(get_db)
 ):
     try:
+        partition = None
+        num_clients = config.num_clients
+        non_iid_mode = config.non_iid_mode
+        non_iid_alpha = config.non_iid_alpha
+
+        if config.partition_id is not None:
+            partition = (
+                db.query(models.Partition)
+                .filter(models.Partition.id == config.partition_id)
+                .first()
+            )
+            if not partition:
+                raise HTTPException(status_code=404, detail="Partition not found")
+
+            num_clients = partition.num_clients
+            non_iid_mode = _partition_mode_to_non_iid_mode(partition.mode)
+            non_iid_alpha = partition.alpha if partition.alpha is not None else config.non_iid_alpha
+
         exp = models.Experiment(
             name=config.name,
             description=config.description,
             status="pending",
-            num_clients=config.num_clients,
+            num_clients=num_clients,
             num_rounds=config.num_rounds,
             client_sample_rate=config.client_sample_rate,
             local_epochs=config.local_epochs,
@@ -237,19 +264,23 @@ def create_experiment(
             dp_noise_multiplier=config.dp_noise_multiplier,
             dp_target_epsilon=config.dp_target_epsilon,
             dp_delta=config.dp_delta,
-            non_iid_mode=config.non_iid_mode,
-            non_iid_alpha=config.non_iid_alpha,
+            non_iid_mode=non_iid_mode,
+            non_iid_alpha=non_iid_alpha,
             num_byzantine=config.num_byzantine,
             byzantine_attack=config.byzantine_attack,
             robust_aggregation=config.robust_aggregation,
             dataset_name=config.dataset_name,
             model_name=config.model_name,
+            partition_id=config.partition_id,
             created_at=datetime.utcnow()
         )
         db.add(exp)
         db.commit()
         db.refresh(exp)
         return exp
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create experiment: {e}", exc_info=True)
@@ -360,6 +391,7 @@ def get_experiment(experiment_id: int, db: Session = Depends(get_db)):
     try:
         exp = (
             db.query(models.Experiment)
+            .options(joinedload(models.Experiment.partition))
             .filter(models.Experiment.id == experiment_id)
             .first()
         )

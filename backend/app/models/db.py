@@ -48,6 +48,8 @@ class Experiment(Base):
     final_accuracy = Column(Float, nullable=True)
     total_communication = Column(Float, default=0.0)
 
+    partition_id = Column(Integer, ForeignKey("partitions.id"), nullable=True)
+
     celery_task_id = Column(String(255), nullable=True)
     error_message = Column(Text, nullable=True)
     last_checkpoint_round = Column(Integer, default=0)
@@ -57,6 +59,7 @@ class Experiment(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     rounds = relationship("RoundResult", back_populates="experiment", cascade="all, delete-orphan")
+    partition = relationship("Partition")
 
 
 class RoundResult(Base):
