@@ -26,6 +26,7 @@ export default function ClientMonitor() {
 
   const [clientMetricsHistory, setClientMetricsHistory] = useState([])
   const [numClients, setNumClients] = useState(0)
+  const [totalRounds, setTotalRounds] = useState(0)
 
   const wsRef = useRef(null)
 
@@ -41,9 +42,13 @@ export default function ClientMonitor() {
   const loadClientMetrics = useCallback(async (expId) => {
     try {
       setLoading(true)
-      const res = await experimentApi.getClientMetrics(expId)
-      setClientMetricsHistory(res.data.client_metrics_history || [])
-      setNumClients(res.data.num_clients || 0)
+      const [metricsRes, roundsRes] = await Promise.all([
+        experimentApi.getClientMetrics(expId),
+        experimentApi.getRounds(expId)
+      ])
+      setClientMetricsHistory(metricsRes.data.client_metrics_history || [])
+      setNumClients(metricsRes.data.num_clients || 0)
+      setTotalRounds(roundsRes.data.total_rounds || 0)
       setError(null)
     } catch (e) {
       setError(e.message)
@@ -66,6 +71,7 @@ export default function ClientMonitor() {
     setSelectedExperimentId(expIdNum)
     setClientMetricsHistory([])
     setNumClients(0)
+    setTotalRounds(0)
     setSelectedExperiment(null)
     setError(null)
 
@@ -137,6 +143,10 @@ export default function ClientMonitor() {
     const stats = {}
     const totalComm = {}
     const participatedRounds = {}
+    const isCompleted = selectedExperiment?.status === 'completed' ||
+                        selectedExperiment?.status === 'stopped' ||
+                        selectedExperiment?.status === 'error' ||
+                        selectedExperiment?.status === 'privacy_exceeded'
 
     for (let i = 0; i < numClients; i++) {
       stats[i] = {
@@ -179,7 +189,7 @@ export default function ClientMonitor() {
 
         if (m.is_byzantine) {
           stats[cid].status = 'malicious'
-        } else if (m.participated) {
+        } else if (m.participated && !isCompleted) {
           stats[cid].status = 'training'
         } else {
           stats[cid].status = 'idle'
@@ -280,7 +290,7 @@ export default function ClientMonitor() {
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="caption" color="text.secondary">已完成轮次</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{clientMetricsHistory.length}</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{totalRounds}</Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="caption" color="text.secondary">实验状态</Typography>
@@ -324,11 +334,11 @@ export default function ClientMonitor() {
         </Paper>
       )}
 
-      {selectedExperimentId && !loading && clientMetricsHistory.length > 0 && (
+      {selectedExperimentId && !loading && totalRounds > 0 && (
         <Stack spacing={3}>
           <ClientOverviewCards
             clients={clientStats}
-            currentRound={clientMetricsHistory.length}
+            currentRound={totalRounds}
           />
 
           <Paper sx={{ p: 3 }}>
@@ -353,8 +363,19 @@ export default function ClientMonitor() {
         </Stack>
       )}
 
-      {selectedExperimentId && !loading && clientMetricsHistory.length === 0 && (
-        <Paper sx={{ p: 6, textAlign: 'center' }}>
+      {selectedExperimentId && !loading && totalRounds > 0 && clientMetricsHistory.length === 0 && (
+        <Paper sx={{ p: 6, textAlign: 'center', mt: 3 }}>
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+            该实验无客户端详细指标数据
+          </Typography>
+          <Typography variant="body2" color="text.disabled">
+            该实验为较早版本创建，仅包含概览卡片数据，无客户端详细指标（热力图、通信量）
+          </Typography>
+        </Paper>
+      )}
+
+      {selectedExperimentId && !loading && totalRounds === 0 && (
+        <Paper sx={{ p: 6, textAlign: 'center', mt: 3 }}>
           <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
             暂无客户端指标数据
           </Typography>

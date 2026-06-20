@@ -144,15 +144,15 @@ export default function ClientAccuracyHeatmap({ clientMetricsHistory = [], numCl
                   title={
                     <Box sx={{ fontSize: 12 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                        Client {cell.client_id} - 第 {cell.round_num} 轮
+                        Client {cell.client_id} - Round {cell.round_num}
                       </Typography>
                       {cell.participated ? (
                         <>
                           <Typography variant="body2">
-                            精度: {cell.accuracy !== null ? (cell.accuracy * 100).toFixed(3) + '%' : '-'}
+                            accuracy={cell.accuracy !== null ? cell.accuracy.toFixed(4) : '-'}
                           </Typography>
                           <Typography variant="body2">
-                            损失: {cell.loss !== null ? cell.loss.toFixed(4) : '-'}
+                            loss={cell.loss !== null ? cell.loss.toFixed(4) : '-'}
                           </Typography>
                         </>
                       ) : (
