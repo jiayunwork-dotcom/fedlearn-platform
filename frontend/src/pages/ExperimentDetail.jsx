@@ -77,7 +77,7 @@ export default function ExperimentDetail() {
         setLogs(prev => [...prev.slice(-99), data])
       },
       onMessage: (data) => {
-        if (data.type === 'round_complete' || data.type === 'progress') {
+        if (data.type === 'round_complete' || data.type === 'progress' || data.type === 'training_round' || data.type === 'completed') {
           loadData()
         }
         if (data.type === 'log') {
@@ -88,10 +88,8 @@ export default function ExperimentDetail() {
     wsRef.current = ws
 
     const interval = setInterval(() => {
-      if (experiment && ['running', 'queued'].includes(experiment.status)) {
-        loadData()
-      }
-    }, 3000)
+      loadData()
+    }, 5000)
 
     return () => {
       ws.close()

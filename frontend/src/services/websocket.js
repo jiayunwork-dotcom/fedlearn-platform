@@ -55,19 +55,27 @@ export class ExperimentWebSocket {
 
   handleMessage(data) {
     const { type } = data
+
+    // Direct type match (e.g., callbacks.log, callbacks.round_complete)
     if (this.callbacks[type]) {
       this.callbacks[type](data)
     }
-    const onType = 'on' + type.charAt(0).toUpperCase() + type.slice(1)
+
+    // Convert type to camelCase onXxx format
+    // e.g., 'log' -> 'onLog', 'round_complete' -> 'onRoundComplete'
+    const camelType = type.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+    const onType = 'on' + camelType.charAt(0).toUpperCase() + camelType.slice(1)
     if (this.callbacks[onType]) {
       this.callbacks[onType](data)
     }
+
     if (data.status) {
       const statusType = data.status
       if (this.callbacks[statusType]) {
         this.callbacks[statusType](data)
       }
-      const onStatus = 'on' + statusType.charAt(0).toUpperCase() + statusType.slice(1)
+      const camelStatus = statusType.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+      const onStatus = 'on' + camelStatus.charAt(0).toUpperCase() + camelStatus.slice(1)
       if (this.callbacks[onStatus]) {
         this.callbacks[onStatus](data)
       }
