@@ -216,7 +216,22 @@ class FedServer:
                 self.secure_aggregator = SecureAggregator(
                     self.num_clients, self.secagg_threshold, self.secagg_dropout_rate
                 )
-                self._log(f"Secure aggregation enabled (threshold={self.secagg_threshold})")
+                self._log(f"Secure aggregation enabled (threshold={self.secagg_threshold}, dropout={self.secagg_dropout_rate})")
+
+                test_updates = {}
+                for cid in range(min(5, self.num_clients)):
+                    test_updates[cid] = [
+                        np.random.randn(20, 20).astype(np.float32) * 0.1,
+                        np.random.randn(10).astype(np.float32) * 0.05
+                    ]
+                verify_result = self.secure_aggregator.verify_cancellation(test_updates)
+                self._log(f"SecAgg mask cancellation verification: {verify_result}")
+
+                agg_test_result, agg_test_info = self.secure_aggregator.secure_aggregate(test_updates)
+                self._log(f"SecAgg full aggregation test: survived={agg_test_info['surviving_clients']}, "
+                         f"dropped={agg_test_info['dropped_clients']}, "
+                         f"rel_error={agg_test_info['aggregation_error_rel']:.6f}, "
+                         f"within_tolerance={agg_test_info['error_within_tolerance']}")
 
             if self.use_dp:
                 dataset_size = len(self.train_dataset)
@@ -309,10 +324,20 @@ class FedServer:
             )
         else:
             if self.secure_agg and self.secure_aggregator is not None:
+                self._log(f"Running SECURE AGGREGATION with Shamir secret sharing (threshold={self.secagg_threshold})")
                 aggregated_update, secagg_info = self.secure_aggregator.secure_aggregate(
                     client_updates, weights
                 )
                 agg_info.update(secagg_info)
+                self._log(
+                    f"  - Shamir threshold: {secagg_info.get('shamir_threshold')}\n"
+                    f"  - Clients: {secagg_info.get('total_clients')} total, "
+                    f"{secagg_info.get('surviving_clients')} survived, "
+                    f"{secagg_info.get('dropped_clients')} dropped\n"
+                    f"  - Dropped IDs: {secagg_info.get('dropped_ids')}\n"
+                    f"  - Aggregation relative error: {secagg_info.get('aggregation_error_rel', 0):.6f}\n"
+                    f"  - Within tolerance: {secagg_info.get('error_within_tolerance')}"
+                )
             else:
                 template = list(client_updates.values())[0] if client_updates else []
                 aggregated_update = [np.zeros_like(t) for t in template]
