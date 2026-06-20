@@ -29,7 +29,13 @@ export const reportApi = {
   getPdfUrl: (id) => `${API_BASE_URL}/reports/${id}/pdf`,
   downloadPdf: (id) => {
     const url = `${API_BASE_URL}/reports/${id}/pdf`
-    window.open(url, '_blank')
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `report_${id}.pdf`)
+    link.setAttribute('target', '_blank')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 }
 

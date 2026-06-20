@@ -237,9 +237,9 @@ export default function ReportPreview() {
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                 二、精度收敛对比
               </Typography>
-              <div className="chart-container" style={{ minHeight: 350 }}>
+              <div className="chart-container" style={{ height: 350, width: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={accuracyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <LineChart key={`accuracy-${accuracyChartData.length}`} data={accuracyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                     <XAxis
                       dataKey="round"
@@ -282,9 +282,9 @@ export default function ReportPreview() {
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                 三、通信效率对比
               </Typography>
-              <div className="chart-container" style={{ minHeight: 350 }}>
+              <div className="chart-container" style={{ height: 350, width: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={commChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <BarChart key={`comm-${commChartData.length}`} data={commChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                     <XAxis
                       dataKey="name"
@@ -314,9 +314,9 @@ export default function ReportPreview() {
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                   四、隐私开销对比
                 </Typography>
-                <div className="chart-container" style={{ minHeight: 350 }}>
+                <div className="chart-container" style={{ height: 350, width: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={privacyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <LineChart key={`privacy-${privacyChartData.length}`} data={privacyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                       <XAxis
                         dataKey="round"

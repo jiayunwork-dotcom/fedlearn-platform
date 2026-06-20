@@ -129,7 +129,11 @@ def get_report_pdf(report_id: int, db: Session = Depends(get_db)):
             pdf_buffer,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{filename}"
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename}; filename=\"{filename}\"",
+                "Content-Type": "application/pdf",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
             }
         )
 
