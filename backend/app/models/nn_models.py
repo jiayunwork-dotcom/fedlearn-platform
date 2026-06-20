@@ -30,13 +30,13 @@ class SimpleCNN(nn.Module):
         self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
+        self.relu = nn.ReLU()
         self.dropout1 = nn.Dropout(0.25)
         self.dropout2 = nn.Dropout(0.5)
 
         self._feature_dim = self._get_feature_dim(in_channels)
         self.fc1 = nn.Linear(self._feature_dim, 128)
         self.fc2 = nn.Linear(128, num_classes)
-        self.relu = nn.ReLU()
 
     def _get_feature_dim(self, in_channels: int) -> int:
         x = torch.randn(1, in_channels, 28, 28) if in_channels == 1 else torch.randn(1, in_channels, 32, 32)
@@ -114,9 +114,16 @@ class SimpleResNet(nn.Module):
         return out
 
 
-def create_model(model_name: str, dataset_name: str, num_classes: int = 10):
-    in_channels = 3 if dataset_name == "cifar10" else 1
-    input_dim = 32 * 32 * 3 if dataset_name == "cifar10" else 28 * 28
+def _infer_input_spec(dataset_name: str, feature_dim: int = None) -> Tuple[int, int, int]:
+    name_lower = dataset_name.lower()
+    if name_lower == "cifar10" or "cifar" in name_lower or feature_dim == 3072:
+        return 3, 32, 32
+    return 1, 28, 28
+
+
+def create_model(model_name: str, dataset_name: str, num_classes: int = 10, feature_dim: int = None):
+    in_channels, img_h, img_w = _infer_input_spec(dataset_name, feature_dim)
+    input_dim = img_h * img_w * in_channels
 
     if model_name == "mlp":
         return MLP(input_dim=input_dim, num_classes=num_classes)

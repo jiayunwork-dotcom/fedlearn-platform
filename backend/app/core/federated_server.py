@@ -225,7 +225,12 @@ class FedServer:
             )
 
             num_classes = self.num_classes
-            self.global_model = create_model(self.model_name, self.dataset_name, num_classes)
+            self.global_model = create_model(
+                self.model_name,
+                self.dataset_name,
+                num_classes,
+                feature_dim=self.feature_dim
+            )
             self.global_params = get_model_params(self.global_model)
             self.test_loader = create_test_loader(test_dataset)
 
@@ -248,7 +253,12 @@ class FedServer:
                 )
 
             for cid, loader in client_loaders.items():
-                client_model = create_model(self.model_name, self.dataset_name, num_classes)
+                client_model = create_model(
+                    self.model_name,
+                    self.dataset_name,
+                    num_classes,
+                    feature_dim=self.feature_dim
+                )
                 data_size = len(loader.dataset)
                 self.client_sizes[cid] = data_size
                 self.clients[cid] = FedClient(
