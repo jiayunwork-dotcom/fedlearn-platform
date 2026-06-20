@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
-  Card, CardContent, Typography, Grid, Chip, Box, Stack
+  Card, CardContent, Typography, Grid, Chip, Box, Stack, Tooltip
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import PauseCircleIcon from '@mui/icons-material/PauseCircle'
 import WarningIcon from '@mui/icons-material/Warning'
 import GppBadIcon from '@mui/icons-material/GppBad'
+import ErrorIcon from '@mui/icons-material/Error'
+import { ANOMALY_TYPES } from '../utils/anomalyDetection'
 
 function useAnimatedNumber(targetValue, duration = 500) {
   const [displayValue, setDisplayValue] = useState(targetValue)
@@ -87,7 +89,7 @@ const STATUS_CONFIG = {
   }
 }
 
-function ClientCard({ client }) {
+function ClientCard({ client, anomalyInfo }) {
   const config = STATUS_CONFIG[client.status] || STATUS_CONFIG.idle
   const StatusIcon = config.icon
 
@@ -95,20 +97,44 @@ function ClientCard({ client }) {
   const animatedAccuracy = useAnimatedNumber(client.latest_accuracy)
   const animatedRounds = useAnimatedNumber(client.participated_rounds)
 
+  const isAnomalous = anomalyInfo?.isAnomalous
+
+  const getAnomalyTooltip = () => {
+    if (!anomalyInfo?.reasons?.length) return ''
+    return anomalyInfo.reasons.map(r => r.message).join('\n')
+  }
+
   return (
     <Card
       sx={{
         height: '100%',
         background: config.bgGradient,
         border: 2,
-        borderColor: config.borderColor,
+        borderColor: isAnomalous ? '#f44336' : config.borderColor,
+        boxShadow: isAnomalous ? '0 0 8px rgba(244, 67, 54, 0.4)' : undefined,
         transition: 'all 0.3s ease',
+        position: 'relative',
         '&:hover': {
           transform: 'translateY(-2px)',
-          boxShadow: 4
+          boxShadow: isAnomalous ? '0 0 12px rgba(244, 67, 54, 0.6), 0 4px 16px rgba(0,0,0,0.15)' : 4
         }
       }}
     >
+      {isAnomalous && (
+        <Tooltip title={getAnomalyTooltip()} placement="top" arrow>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              zIndex: 10,
+              lineHeight: 0
+            }}
+          >
+            <ErrorIcon className="anomaly-warning-icon" sx={{ fontSize: 22 }} />
+          </Box>
+        </Tooltip>
+      )}
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
           <StatusIcon color={config.color} sx={{ fontSize: 20 }} />
@@ -191,10 +217,11 @@ function ClientCard({ client }) {
   )
 }
 
-export default function ClientOverviewCards({ clients = [], currentRound = 0 }) {
+export default function ClientOverviewCards({ clients = [], currentRound = 0, anomalyClients = [], clientAnomalyInfo = {} }) {
   const trainingCount = clients.filter(c => c.status === 'training').length
   const idleCount = clients.filter(c => c.status === 'idle').length
   const maliciousCount = clients.filter(c => c.status === 'malicious').length
+  const anomalyCount = anomalyClients.length
 
   return (
     <Box>
@@ -222,6 +249,16 @@ export default function ClientOverviewCards({ clients = [], currentRound = 0 }) 
           />
         )}
         <Chip
+          icon={<ErrorIcon sx={{ fontSize: 16 }} />}
+          label={`异常客户端: ${anomalyCount}`}
+          color={anomalyCount > 0 ? 'error' : 'default'}
+          variant={anomalyCount > 0 ? 'filled' : 'outlined'}
+          sx={anomalyCount > 0 ? {
+            animation: 'warning-blink 1.5s ease-in-out infinite',
+            '& .MuiChip-icon': { color: 'white' }
+          } : undefined}
+        />
+        <Chip
           label={`当前轮次: ${currentRound}`}
           color="info"
           variant="outlined"
@@ -231,7 +268,7 @@ export default function ClientOverviewCards({ clients = [], currentRound = 0 }) 
       <Grid container spacing={2}>
         {clients.map(client => (
           <Grid item xs={12} sm={6} md={4} lg={3} xl={2} key={client.client_id}>
-            <ClientCard client={client} />
+            <ClientCard client={client} anomalyInfo={clientAnomalyInfo[client.client_id]} />
           </Grid>
         ))}
       </Grid>

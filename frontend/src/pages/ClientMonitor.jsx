@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box, Paper, Typography, Grid, Chip, FormControl, InputLabel,
-  Select, MenuItem, Stack, Alert, CircularProgress
+  Select, MenuItem, Stack, Alert, CircularProgress, IconButton,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button,
+  Slider, Tooltip
 } from '@mui/material'
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart'
+import SettingsIcon from '@mui/icons-material/Settings'
+import CloseIcon from '@mui/icons-material/Close'
 import { experimentApi } from '../services/api'
 import { createWebSocket } from '../services/websocket'
 import ClientOverviewCards from '../components/ClientOverviewCards.jsx'
 import ClientAccuracyHeatmap from '../components/ClientAccuracyHeatmap.jsx'
 import ClientCommunicationBar from '../components/ClientCommunicationBar.jsx'
+import AnomalyEventTimeline from '../components/AnomalyEventTimeline.jsx'
+import { detectAnomalies, DEFAULT_THRESHOLDS } from '../utils/anomalyDetection'
 
 const STATUS_TEXT = {
   pending: '待启动', queued: '排队中', running: '运行中',
@@ -28,7 +34,57 @@ export default function ClientMonitor() {
   const [numClients, setNumClients] = useState(0)
   const [totalRounds, setTotalRounds] = useState(0)
 
+  const [thresholds, setThresholds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('anomalyThresholds')
+      if (saved) {
+        return JSON.parse(saved)
+      }
+    } catch (e) {
+      // ignore
+    }
+    return { ...DEFAULT_THRESHOLDS }
+  })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [tempAccuracyDrop, setTempAccuracyDrop] = useState(thresholds.accuracyDropPercent)
+  const [tempLossRiseMultiplier, setTempLossRiseMultiplier] = useState(thresholds.lossRiseMultiplier)
+
   const wsRef = useRef(null)
+
+  const anomalyResult = useMemo(() => {
+    return detectAnomalies(clientMetricsHistory, numClients, thresholds)
+  }, [clientMetricsHistory, numClients, thresholds])
+
+  const { anomalyClients, anomalyEvents, roundAnomalies, clientAnomalyInfo } = anomalyResult
+
+  const persistThresholds = useCallback((newThresholds) => {
+    try {
+      localStorage.setItem('anomalyThresholds', JSON.stringify(newThresholds))
+    } catch (e) {
+      // ignore
+    }
+  }, [])
+
+  const handleOpenSettings = () => {
+    setTempAccuracyDrop(thresholds.accuracyDropPercent)
+    setTempLossRiseMultiplier(thresholds.lossRiseMultiplier)
+    setSettingsOpen(true)
+  }
+
+  const handleSaveSettings = () => {
+    const newThresholds = {
+      accuracyDropPercent: tempAccuracyDrop,
+      lossRiseMultiplier: tempLossRiseMultiplier
+    }
+    setThresholds(newThresholds)
+    persistThresholds(newThresholds)
+    setSettingsOpen(false)
+  }
+
+  const handleResetSettings = () => {
+    setTempAccuracyDrop(DEFAULT_THRESHOLDS.accuracyDropPercent)
+    setTempLossRiseMultiplier(DEFAULT_THRESHOLDS.lossRiseMultiplier)
+  }
 
   const loadExperiments = useCallback(async () => {
     try {
@@ -283,7 +339,7 @@ export default function ClientMonitor() {
 
           {selectedExperiment && (
             <Grid item xs={12} md={6}>
-              <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap">
+              <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap" alignItems="center">
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="caption" color="text.secondary">客户端数</Typography>
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>{numClients}</Typography>
@@ -304,11 +360,113 @@ export default function ClientMonitor() {
                     }
                   />
                 </Box>
+                <Tooltip title="告警阈值设置" placement="top">
+                  <IconButton
+                    onClick={handleOpenSettings}
+                    sx={{
+                      border: 1,
+                      borderColor: 'divider',
+                      bgcolor: anomalyClients.length > 0 ? 'error.light' : 'background.paper',
+                      '&:hover': { bgcolor: 'action.hover' }
+                    }}
+                  >
+                    <SettingsIcon sx={{ color: anomalyClients.length > 0 ? 'error.main' : 'action.active' }} />
+                  </IconButton>
+                </Tooltip>
               </Stack>
             </Grid>
           )}
         </Grid>
       </Paper>
+
+      <Dialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>告警阈值设置</Typography>
+          <IconButton onClick={() => setSettingsOpen(false)} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ pt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              自定义异常判定阈值，修改后立即生效（仅保存在本地浏览器）。
+            </Typography>
+
+            <Box sx={{ mb: 4 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  精度下降幅度阈值
+                </Typography>
+                <Typography variant="body1" sx={{ fontFamily: 'monospace', fontWeight: 700, color: 'warning.main' }}>
+                  {tempAccuracyDrop} 个百分点
+                </Typography>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                当某客户端最新一轮精度相比历史均值下降超过该值时，判定为异常
+              </Typography>
+              <Slider
+                value={tempAccuracyDrop}
+                onChange={(e, v) => setTempAccuracyDrop(v)}
+                min={5}
+                max={50}
+                step={1}
+                marks={[
+                  { value: 5, label: '5%' },
+                  { value: 20, label: '20%' },
+                  { value: 50, label: '50%' }
+                ]}
+                valueLabelDisplay="auto"
+              />
+            </Box>
+
+            <Box>
+              <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Loss 上升倍率阈值
+                </Typography>
+                <Typography variant="body1" sx={{ fontFamily: 'monospace', fontWeight: 700, color: 'secondary.main' }}>
+                  {tempLossRiseMultiplier.toFixed(1)} 倍
+                </Typography>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                当连续2轮 Loss 上升且最新 Loss 超过历史均值该倍数时，判定为异常
+              </Typography>
+              <Slider
+                value={tempLossRiseMultiplier}
+                onChange={(e, v) => setTempLossRiseMultiplier(v)}
+                min={1.1}
+                max={3.0}
+                step={0.1}
+                marks={[
+                  { value: 1.1, label: '1.1x' },
+                  { value: 1.5, label: '1.5x' },
+                  { value: 3.0, label: '3.0x' }
+                ]}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(v) => `${v.toFixed(1)}x`}
+              />
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
+          <Button onClick={handleResetSettings} color="inherit">
+            恢复默认
+          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button onClick={() => setSettingsOpen(false)} color="inherit">
+              取消
+            </Button>
+            <Button onClick={handleSaveSettings} variant="contained" color="primary">
+              保存并应用
+            </Button>
+          </Stack>
+        </DialogActions>
+      </Dialog>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -339,6 +497,8 @@ export default function ClientMonitor() {
           <ClientOverviewCards
             clients={clientStats}
             currentRound={totalRounds}
+            anomalyClients={anomalyClients}
+            clientAnomalyInfo={clientAnomalyInfo}
           />
 
           <Paper sx={{ p: 3 }}>
@@ -348,6 +508,8 @@ export default function ClientMonitor() {
             <ClientAccuracyHeatmap
               clientMetricsHistory={clientMetricsHistory}
               numClients={numClients}
+              roundAnomalies={roundAnomalies}
+              clientAnomalyInfo={clientAnomalyInfo}
             />
           </Paper>
 
@@ -358,6 +520,17 @@ export default function ClientMonitor() {
             <ClientCommunicationBar
               clientStats={clientStats}
               numClients={numClients}
+            />
+          </Paper>
+
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+              异常事件时间线
+            </Typography>
+            <AnomalyEventTimeline
+              anomalyEvents={anomalyEvents}
+              totalRounds={totalRounds}
+              clientMetricsHistory={clientMetricsHistory}
             />
           </Paper>
         </Stack>

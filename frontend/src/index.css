@@ -40,3 +40,53 @@ body {
   height: 100%;
   min-height: 280px;
 }
+
+@keyframes warning-blink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.15);
+  }
+}
+
+.anomaly-warning-icon {
+  animation: warning-blink 1s ease-in-out infinite;
+  color: #f44336 !important;
+}
+
+.anomaly-triangle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-top: 8px solid #ff9800;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.anomaly-triangle-loss {
+  border-top-color: #9c27b0;
+}
+
+.timeline-scroll-container {
+  cursor: grab;
+  user-select: none;
+}
+
+.timeline-scroll-container:active {
+  cursor: grabbing;
+}
+
+.timeline-dot {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.timeline-dot:hover {
+  transform: scale(1.4);
+}
