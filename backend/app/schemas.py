@@ -50,21 +50,35 @@ class ExperimentResponse(BaseModel):
 
     num_clients: int
     num_rounds: int
+    client_sample_rate: float = 1.0
+    local_epochs: int = 5
+    batch_size: int = 64
+    learning_rate: float = 0.01
     algorithm: str
+    fedprox_mu: float = 0.01
     dataset_name: str
     model_name: str
 
     secure_aggregation: bool
+    secagg_threshold: int = 8
+    secagg_dropout_rate: float = 0.1
     differential_privacy: bool
+    dp_clip_norm: float = 1.0
+    dp_noise_multiplier: float = 1.0
+    dp_target_epsilon: float = 5.0
     non_iid_mode: str
+    non_iid_alpha: float = 0.5
     robust_aggregation: str
     num_byzantine: int
+    byzantine_attack: str = "random"
 
     final_accuracy: Optional[float]
     current_epsilon: Optional[float]
     total_communication: Optional[float]
 
     celery_task_id: Optional[str]
+    last_checkpoint_round: int = 0
+    error_message: Optional[str] = None
     created_at: datetime
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
@@ -99,6 +113,26 @@ class ExperimentDetailResponse(ExperimentResponse):
 class ExperimentListResponse(BaseModel):
     total: int
     experiments: List[ExperimentResponse]
+
+
+class ExperimentResume(BaseModel):
+    num_rounds: Optional[int] = None
+    learning_rate: Optional[float] = None
+    local_epochs: Optional[int] = None
+    batch_size: Optional[int] = None
+    client_sample_rate: Optional[float] = None
+    fedprox_mu: Optional[float] = None
+    dp_target_epsilon: Optional[float] = None
+    dp_noise_multiplier: Optional[float] = None
+    dp_clip_norm: Optional[float] = None
+
+
+class ExperimentTemplateResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    config: dict
+    key_params: Dict[str, Any]
 
 
 class ProgressUpdate(BaseModel):

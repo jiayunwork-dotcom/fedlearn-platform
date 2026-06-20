@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple, Callable
 import random
 import time
 import traceback
+import os
 
 from app.models.nn_models import (
     create_model, get_model_params, set_model_params, get_model_size_bytes
@@ -16,6 +17,7 @@ from app.core.byzantine import ByzantineAttack, RobustAggregator
 from app.core.differential_privacy import DifferentialPrivacyEngine, PrivacyAccountant
 from app.database import SessionLocal
 from app import models
+from app.config import settings
 
 
 class FedServer:
@@ -82,6 +84,50 @@ class FedServer:
         self.total_communication = 0.0
         self.is_running = False
         self.stop_requested = False
+
+        self.resume_from_round = config.get('resume_from_round', 0)
+        self._checkpoint_base_dir = os.path.join(
+            settings.DATA_DIR, "checkpoints", f"experiment_{experiment_id}"
+        )
+
+    def _save_checkpoint(self, round_num: int):
+        try:
+            os.makedirs(self._checkpoint_base_dir, exist_ok=True)
+            checkpoint_path = os.path.join(
+                self._checkpoint_base_dir, f"round_{round_num}.pt"
+            )
+            checkpoint = {
+                'round_num': round_num,
+                'global_params': [p.tolist() for p in self.global_params],
+                'total_communication': self.total_communication,
+            }
+            if self.use_dp and self.privacy_accountant is not None:
+                checkpoint['current_epsilon'] = self.privacy_accountant.total_epsilon
+            torch.save(checkpoint, checkpoint_path)
+            self._log(f"Checkpoint saved: {checkpoint_path}")
+        except Exception as e:
+            self._log(f"Failed to save checkpoint for round {round_num}: {e}", "error")
+
+    def _load_checkpoint(self, round_num: int) -> bool:
+        try:
+            checkpoint_path = os.path.join(
+                self._checkpoint_base_dir, f"round_{round_num}.pt"
+            )
+            if not os.path.exists(checkpoint_path):
+                self._log(f"Checkpoint file not found: {checkpoint_path}", "error")
+                return False
+            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+            self.global_params = [np.array(p, dtype=np.float32) for p in checkpoint['global_params']]
+            set_model_params(self.global_model, self.global_params)
+            self.total_communication = checkpoint.get('total_communication', 0.0)
+            if self.use_dp and self.privacy_accountant is not None:
+                saved_epsilon = checkpoint.get('current_epsilon', 0.0)
+                self.privacy_accountant.total_epsilon = saved_epsilon
+            self._log(f"Checkpoint loaded from round {round_num}")
+            return True
+        except Exception as e:
+            self._log(f"Failed to load checkpoint from round {round_num}: {e}", "error")
+            return False
 
     def _log(self, message: str, level: str = "info"):
         print(f"[Experiment {self.experiment_id}] [{level.upper()}] {message}", flush=True)
@@ -369,7 +415,16 @@ class FedServer:
                 return False
 
         try:
-            for round_num in range(1, self.num_rounds + 1):
+            start_round = 1
+            if self.resume_from_round > 0:
+                self._log(f"Resuming from checkpoint at round {self.resume_from_round}...")
+                if self._load_checkpoint(self.resume_from_round):
+                    start_round = self.resume_from_round + 1
+                    self._log(f"Resuming training from round {start_round}")
+                else:
+                    self._log("Checkpoint load failed, starting from round 1", "warning")
+
+            for round_num in range(start_round, self.num_rounds + 1):
                 if self.stop_requested:
                     self._log("Training stopped by user request")
                     self._update_db_status("stopped")
@@ -427,6 +482,7 @@ class FedServer:
                             round_num, global_acc, global_loss, client_accs, client_losses,
                             client_ids, comm_bytes, epsilon_round, agg_info, round_start
                         )
+                        self._save_checkpoint(round_num)
                         self._update_db_status(
                             "privacy_exceeded",
                             final_accuracy=global_acc,
@@ -444,6 +500,8 @@ class FedServer:
                     round_num, global_acc, global_loss, client_accs, client_losses,
                     client_ids, comm_bytes, epsilon_round, agg_info, round_start
                 )
+
+                self._save_checkpoint(round_num)
 
                 self._send_progress(
                     "round_complete",

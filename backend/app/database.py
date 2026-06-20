@@ -57,6 +57,21 @@ def init_db():
 
         with SessionLocal() as db:
             try:
+                result = db.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='experiments' AND column_name='last_checkpoint_round'"
+                ))
+                if result.fetchone() is None:
+                    db.execute(text(
+                        "ALTER TABLE experiments ADD COLUMN last_checkpoint_round INTEGER DEFAULT 0"
+                    ))
+                    db.commit()
+                    logger.info("Added last_checkpoint_round column to experiments table")
+            except Exception as e:
+                logger.warning(f"Migration check for last_checkpoint_round: {e}")
+                db.rollback()
+
+            try:
                 exp_count = db.query(models.Experiment).count()
                 logger.info(f"Database check: {exp_count} experiments found")
             except Exception as e:

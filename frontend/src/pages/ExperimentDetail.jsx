@@ -9,6 +9,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import StopIcon from '@mui/icons-material/Stop'
 import RefreshIcon from '@mui/icons-material/Refresh'
+import ReplayIcon from '@mui/icons-material/Replay'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import { experimentApi } from '../services/api'
@@ -121,6 +122,15 @@ export default function ExperimentDetail() {
     }
   }
 
+  const handleResume = async () => {
+    try {
+      await experimentApi.resume(experimentId)
+      loadData()
+    } catch (e) {
+      alert(e.response?.data?.detail || '续跑失败')
+    }
+  }
+
   if (loading && !experiment) {
     return <LinearProgress />
   }
@@ -164,6 +174,11 @@ export default function ExperimentDetail() {
           {(experiment.status === 'pending' || experiment.status === 'stopped' || experiment.status === 'error' || experiment.status === 'completed') && (
             <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={handleStart}>
               开始
+            </Button>
+          )}
+          {(experiment.status === 'stopped' || experiment.status === 'error') && rounds.length > 0 && (
+            <Button variant="contained" color="success" startIcon={<ReplayIcon />} onClick={handleResume}>
+              续跑
             </Button>
           )}
           {(experiment.status === 'running' || experiment.status === 'queued') && (
@@ -218,6 +233,14 @@ export default function ExperimentDetail() {
               {rounds.length} / {experiment.num_rounds} 轮
             </Typography>
           </Grid>
+          {experiment.last_checkpoint_round > 0 && (
+            <Grid item xs={6} sm={3}>
+              <Typography variant="caption" color="text.secondary">断点轮次</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 600, color: 'info.main' }}>
+                第 {experiment.last_checkpoint_round} 轮
+              </Typography>
+            </Grid>
+          )}
           <Grid item xs={6} sm={3}>
             <Typography variant="caption" color="text.secondary">总通信量</Typography>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>
