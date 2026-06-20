@@ -46,6 +46,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - DATA_DIR=/app/data
+      - PYTHONUNBUFFERED=1
     ports:
       - "8000:8000"
     volumes:
@@ -60,7 +61,7 @@ services:
       - fedlearn-net
     command: >
       sh -c "
-        python -c \"import app.database; app.database.init_db()\" &&
+        python3 -c \"import app.database; app.database.init_db()\" &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
 
@@ -75,6 +76,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - DATA_DIR=/app/data
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./backend:/app
       - fedlearn_data:/app/data
@@ -85,7 +87,7 @@ services:
         condition: service_healthy
     networks:
       - fedlearn-net
-    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4
+    command: celery -A app.worker.celery_app worker --loglevel=INFO --concurrency=2 -Q celery --pool=prefork
 
   frontend:
     build:
