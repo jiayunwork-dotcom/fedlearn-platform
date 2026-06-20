@@ -102,3 +102,32 @@ class Report(Base):
     pdf_size = Column(Integer, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Dataset(Base):
+    __tablename__ = "datasets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    num_samples = Column(Integer, nullable=False)
+    num_classes = Column(Integer, nullable=False)
+    feature_dim = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    partitions = relationship("Partition", back_populates="dataset", cascade="all, delete-orphan")
+
+
+class Partition(Base):
+    __tablename__ = "partitions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dataset_id = Column(Integer, ForeignKey("datasets.id"), nullable=False)
+    num_clients = Column(Integer, nullable=False)
+    mode = Column(String(50), nullable=False)
+    alpha = Column(Float, nullable=True)
+    labels_per_client = Column(Integer, nullable=True)
+    distribution_matrix = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    dataset = relationship("Dataset", back_populates="partitions")

@@ -63,4 +63,16 @@ export const reportApi = {
   }
 }
 
+export const datasetApi = {
+  create: (data) => api.post('/datasets', data),
+  list: (params = {}) => api.get('/datasets', { params }),
+  get: (id) => api.get(`/datasets/${id}`),
+  update: (id, data) => api.put(`/datasets/${id}`, data),
+  delete: (id) => api.delete(`/datasets/${id}`),
+  createPartition: (id, data) => api.post(`/datasets/${id}/partitions`, data),
+  listPartitions: (id) => api.get(`/datasets/${id}/partitions`),
+  getPartition: (id, partitionId) => api.get(`/datasets/${id}/partitions/${partitionId}`),
+  deletePartition: (id, partitionId) => api.delete(`/datasets/${id}/partitions/${partitionId}`),
+}
+
 export default api

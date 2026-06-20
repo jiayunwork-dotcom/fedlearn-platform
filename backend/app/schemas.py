@@ -219,3 +219,75 @@ class ReportListItem(BaseModel):
 class ReportListResponse(BaseModel):
     total: int
     reports: List[ReportListItem]
+
+
+class DatasetBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    num_samples: int = Field(..., ge=1)
+    num_classes: int = Field(..., ge=1)
+    feature_dim: int = Field(..., ge=1)
+
+
+class DatasetCreate(DatasetBase):
+    pass
+
+
+class DatasetUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    num_samples: Optional[int] = Field(None, ge=1)
+    num_classes: Optional[int] = Field(None, ge=1)
+    feature_dim: Optional[int] = Field(None, ge=1)
+
+
+class DatasetResponse(DatasetBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DatasetListResponse(BaseModel):
+    total: int
+    datasets: List[DatasetResponse]
+
+
+class PartitionCreateRequest(BaseModel):
+    num_clients: int = Field(..., ge=2, le=20)
+    mode: str = Field(..., pattern="^(iid|dirichlet|label_skew)$")
+    alpha: Optional[float] = Field(None, ge=0.01, le=100)
+    labels_per_client: Optional[int] = Field(None, ge=1)
+
+
+class PartitionResponse(BaseModel):
+    id: int
+    dataset_id: int
+    num_clients: int
+    mode: str
+    alpha: Optional[float]
+    labels_per_client: Optional[int]
+    distribution_matrix: List[List[float]]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PartitionListItem(BaseModel):
+    id: int
+    dataset_id: int
+    num_clients: int
+    mode: str
+    alpha: Optional[float]
+    labels_per_client: Optional[int]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PartitionListResponse(BaseModel):
+    total: int
+    partitions: List[PartitionListItem]

@@ -7,10 +7,13 @@ import {
 import HomeIcon from '@mui/icons-material/Home'
 import AddIcon from '@mui/icons-material/Add'
 import DescriptionIcon from '@mui/icons-material/Description'
+import DatasetIcon from '@mui/icons-material/Dataset'
 import Dashboard from './pages/Dashboard.jsx'
 import ExperimentDetail from './pages/ExperimentDetail.jsx'
 import ReportPreview from './pages/ReportPreview.jsx'
 import ReportCenter from './pages/ReportCenter.jsx'
+import DatasetList from './pages/DatasetList.jsx'
+import DatasetDetail from './pages/DatasetDetail.jsx'
 import CreateExperimentModal from './components/CreateExperimentModal.jsx'
 
 export default function App() {
@@ -36,6 +39,17 @@ export default function App() {
           >
             联邦学习安全聚合与模型训练实验平台
           </Typography>
+          <Tooltip title="数据集管理">
+            <Button
+              color="inherit"
+              startIcon={<DatasetIcon />}
+              variant="outlined"
+              sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', mr: 2 }}
+              onClick={() => navigate('/datasets')}
+            >
+              数据集
+            </Button>
+          </Tooltip>
           <Tooltip title="报告中心">
             <Button
               color="inherit"
@@ -71,6 +85,8 @@ export default function App() {
           <Route path="/experiment/:id" element={<ExperimentDetail />} />
           <Route path="/reports" element={<ReportCenter />} />
           <Route path="/report/:id" element={<ReportPreview />} />
+          <Route path="/datasets" element={<DatasetList />} />
+          <Route path="/datasets/:id" element={<DatasetDetail />} />
         </Routes>
       </Container>
 
