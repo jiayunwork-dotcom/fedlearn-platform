@@ -87,6 +87,22 @@ def init_db():
                 db.rollback()
 
             try:
+                result = db.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='experiments' AND column_name='partition_id'"
+                ))
+                if result.fetchone() is None:
+                    db.execute(text(
+                        "ALTER TABLE experiments ADD COLUMN partition_id INTEGER "
+                        "REFERENCES partitions(id) ON DELETE SET NULL"
+                    ))
+                    db.commit()
+                    logger.info("Added partition_id column to experiments table")
+            except Exception as e:
+                logger.warning(f"Migration check for partition_id: {e}")
+                db.rollback()
+
+            try:
                 exp_count = db.query(models.Experiment).count()
                 logger.info(f"Database check: {exp_count} experiments found")
             except Exception as e:

@@ -7,7 +7,7 @@ import {
   ListItemText, IconButton, Tooltip, Slider,
   Checkbox, ListItemButton, Card, CardContent,
   Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow
+  TableHead, TableRow, Stack
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'

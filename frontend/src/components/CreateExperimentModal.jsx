@@ -141,7 +141,7 @@ export default function CreateExperimentModal({ open, onClose }) {
     setSelectedDatasetId(datasetId)
     setConfig(prev => ({
       ...prev,
-      dataset_name: dataset ? dataset.name.toLowerCase().replace(/[^a-z0-9]/g, '') : 'mnist',
+      dataset_name: dataset ? dataset.name : 'mnist',
     }))
     setUsePartition(false)
     setSelectedPartitionId(null)
