@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fedlearn-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fedlearn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fedlearn123}
+      POSTGRES_DB: ${POSTGRES_DB:-fedlearn_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fedlearn}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fedlearn-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: fedlearn-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fedlearn-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fedlearn-backend
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-fedlearn}:${POSTGRES_PASSWORD:-fedlearn123}@postgres:5432/${POSTGRES_DB:-fedlearn_db}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - DATA_DIR=/app/data
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - fedlearn_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fedlearn-net
+    command: >
+      sh -c "
+        python -c \"import app.database; app.database.init_db()\" &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fedlearn-worker
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-fedlearn}:${POSTGRES_PASSWORD:-fedlearn123}@postgres:5432/${POSTGRES_DB:-fedlearn_db}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - DATA_DIR=/app/data
+    volumes:
+      - ./backend:/app
+      - fedlearn_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fedlearn-net
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fedlearn-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - fedlearn-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  fedlearn_data:
+
+networks:
+  fedlearn-net:
+    driver: bridge
