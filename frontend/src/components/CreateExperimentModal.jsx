@@ -101,11 +101,32 @@ export default function CreateExperimentModal({ open, onClose }) {
 
   const handleSelectTemplate = (template) => {
     setSelectedTemplateId(template.id)
-    setConfig({
+    const merged = {
       ...DEFAULT_CONFIG,
       ...template.config,
       description: template.description,
-    })
+    }
+    const numericFields = [
+      'num_clients', 'num_rounds', 'local_epochs', 'batch_size',
+      'learning_rate', 'client_sample_rate', 'fedprox_mu',
+      'secagg_threshold', 'secagg_dropout_rate',
+      'dp_clip_norm', 'dp_noise_multiplier', 'dp_target_epsilon', 'dp_delta',
+      'non_iid_alpha', 'num_byzantine',
+    ]
+    const boolFields = [
+      'secure_aggregation', 'differential_privacy',
+    ]
+    for (const key of numericFields) {
+      if (merged[key] !== undefined) {
+        merged[key] = Number(merged[key])
+      }
+    }
+    for (const key of boolFields) {
+      if (merged[key] !== undefined) {
+        merged[key] = Boolean(merged[key])
+      }
+    }
+    setConfig(merged)
   }
 
   const handleChange = (field, value) => {

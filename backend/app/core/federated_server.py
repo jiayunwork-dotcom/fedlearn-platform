@@ -166,15 +166,12 @@ class FedServer:
     def _update_db_status(self, status: str, **fields):
         db = SessionLocal()
         try:
-            exp = db.query(models.Experiment).filter(
+            update_data = {"status": status}
+            update_data.update(fields)
+            db.query(models.Experiment).filter(
                 models.Experiment.id == self.experiment_id
-            ).first()
-            if exp:
-                exp.status = status
-                for key, value in fields.items():
-                    if hasattr(exp, key):
-                        setattr(exp, key, value)
-                db.commit()
+            ).update(update_data)
+            db.commit()
         except Exception as e:
             self._log(f"DB update error: {e}", "error")
         finally:
@@ -190,16 +187,19 @@ class FedServer:
             )
             db.add(rr)
 
-            exp = db.query(models.Experiment).filter(
-                models.Experiment.id == self.experiment_id
-            ).first()
-            if exp:
-                if 'epsilon_consumed' in data:
-                    exp.current_epsilon += data['epsilon_consumed']
-                if 'communication_bytes' in data:
-                    exp.total_communication += data['communication_bytes']
-                if data.get('global_accuracy') is not None:
-                    exp.final_accuracy = data['global_accuracy']
+            update_fields = {}
+            if 'epsilon_consumed' in data:
+                update_fields['current_epsilon'] = models.Experiment.current_epsilon + data['epsilon_consumed']
+            if 'communication_bytes' in data:
+                update_fields['total_communication'] = models.Experiment.total_communication + data['communication_bytes']
+            if data.get('global_accuracy') is not None:
+                update_fields['final_accuracy'] = data['global_accuracy']
+
+            if update_fields:
+                db.query(models.Experiment).filter(
+                    models.Experiment.id == self.experiment_id
+                ).update(update_fields)
+
             db.commit()
         except Exception as e:
             self._log(f"Save round result error: {e}", "error")
@@ -421,6 +421,10 @@ class FedServer:
                 if self._load_checkpoint(self.resume_from_round):
                     start_round = self.resume_from_round + 1
                     self._log(f"Resuming training from round {start_round}")
+                    sync_fields = {"total_communication": self.total_communication}
+                    if self.use_dp and self.privacy_accountant:
+                        sync_fields["current_epsilon"] = self.privacy_accountant.total_epsilon
+                    self._update_db_status("running", **sync_fields)
                 else:
                     self._log("Checkpoint load failed, starting from round 1", "warning")
 

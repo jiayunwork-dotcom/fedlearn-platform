@@ -376,6 +376,7 @@ export default function ExperimentDetail() {
                   participants: r.num_participants
                 }))}
                 totalClients={experiment.num_clients}
+                totalCommunication={experiment.total_communication}
               />
             </CardContent>
           </Card>

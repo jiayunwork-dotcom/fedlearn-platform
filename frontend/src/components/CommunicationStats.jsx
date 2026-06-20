@@ -4,14 +4,17 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
 
-export default function CommunicationStats({ rounds = [], totalClients = 10 }) {
+export default function CommunicationStats({ rounds = [], totalClients = 10, totalCommunication = null }) {
   const commData = rounds.map(r => ({
     round: r.round,
     MB: parseFloat((r.bytes / 1024 / 1024).toFixed(3)),
     参与率: r.participants ? parseFloat(((r.participants / totalClients) * 100).toFixed(1)) : 0
   }))
 
-  const totalMB = commData.reduce((sum, r) => sum + r.MB, 0)
+  const totalMB = totalCommunication !== null
+    ? totalCommunication / 1024 / 1024
+    : commData.reduce((sum, r) => sum + r.MB, 0)
+  const completedRounds = rounds.length > 0 ? rounds[rounds.length - 1].round : 0
   const avgParticipants = rounds.length > 0
     ? (rounds.reduce((sum, r) => sum + (r.participants || 0), 0) / rounds.length).toFixed(1)
     : 0
@@ -29,7 +32,7 @@ export default function CommunicationStats({ rounds = [], totalClients = 10 }) {
       <Grid item xs={12} sm={4}>
         <Paper sx={{ p: 2, textAlign: 'center' }}>
           <Typography variant="h5" color="secondary.main" sx={{ fontWeight: 700 }}>
-            {rounds.length > 0 ? rounds[rounds.length - 1].round : 0}
+            {completedRounds}
           </Typography>
           <Typography variant="caption" color="text.secondary">已完成轮次</Typography>
         </Paper>
