@@ -27,15 +27,29 @@ export const reportApi = {
   generate: (experimentIds) => api.post('/reports/generate', { experiment_ids: experimentIds }),
   get: (id) => api.get(`/reports/${id}`),
   getPdfUrl: (id) => `${API_BASE_URL}/reports/${id}/pdf`,
-  downloadPdf: (id) => {
-    const url = `${API_BASE_URL}/reports/${id}/pdf`
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `report_${id}.pdf`)
-    link.setAttribute('target', '_blank')
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  downloadPdf: async (id) => {
+    try {
+      const response = await api.get(`/reports/${id}/pdf`, {
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `report_${id}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Download PDF failed:', error)
+      const url = `${API_BASE_URL}/reports/${id}/pdf`
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `report_${id}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
   }
 }
 

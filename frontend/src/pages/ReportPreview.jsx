@@ -33,6 +33,8 @@ export default function ReportPreview() {
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [downloading, setDownloading] = useState(false)
+  const [chartKey, setChartKey] = useState(0)
 
   const loadReport = async () => {
     try {
@@ -51,8 +53,24 @@ export default function ReportPreview() {
     loadReport()
   }, [reportId])
 
-  const handleDownloadPdf = () => {
-    reportApi.downloadPdf(reportId)
+  useEffect(() => {
+    if (!loading && report) {
+      const timer = setTimeout(() => {
+        setChartKey(prev => prev + 1)
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [loading, report])
+
+  const handleDownloadPdf = async () => {
+    try {
+      setDownloading(true)
+      await reportApi.downloadPdf(reportId)
+    } catch (e) {
+      console.error('下载PDF失败:', e)
+    } finally {
+      setDownloading(false)
+    }
   }
 
   if (loading) {
@@ -95,8 +113,9 @@ export default function ReportPreview() {
             color="error"
             startIcon={<PictureAsPdfIcon />}
             onClick={handleDownloadPdf}
+            disabled={downloading}
           >
-            导出 PDF
+            {downloading ? '导出中...' : '导出 PDF'}
           </Button>
         </Stack>
       </Paper>
@@ -237,40 +256,46 @@ export default function ReportPreview() {
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                 二、精度收敛对比
               </Typography>
-              <div className="chart-container" style={{ height: 350, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart key={`accuracy-${accuracyChartData.length}`} data={accuracyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                    <XAxis
-                      dataKey="round"
-                      label={{ value: '通信轮次', position: 'insideBottom', offset: -5 }}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis
-                      label={{ value: '全局精度 (%)', angle: -90, position: 'insideLeft' }}
-                      tick={{ fontSize: 12 }}
-                      domain={[0, 100]}
-                      tickFormatter={(v) => `${v}%`}
-                    />
-                    <RechartsTooltip
-                      formatter={(value) => [`${value.toFixed(2)}%`, '精度']}
-                      labelFormatter={(l) => `第 ${l} 轮`}
-                    />
-                    <Legend />
-                    {report.accuracy_chart_data?.experiments?.map((exp, idx) => (
-                      <Line
-                        key={exp.experiment_id}
-                        type="monotone"
-                        dataKey={exp.experiment_name}
-                        name={exp.experiment_name}
-                        stroke={COLORS[idx % COLORS.length]}
-                        strokeWidth={2.5}
-                        dot={{ r: 3 }}
-                        activeDot={{ r: 6 }}
+              <div
+                key={`accuracy-chart-${chartKey}`}
+                className="chart-container"
+                style={{ height: 350, width: '100%', position: 'relative' }}
+              >
+                {!loading && accuracyChartData.length > 0 && (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={accuracyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                      <XAxis
+                        dataKey="round"
+                        label={{ value: '通信轮次', position: 'insideBottom', offset: -5 }}
+                        tick={{ fontSize: 12 }}
                       />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                      <YAxis
+                        label={{ value: '全局精度 (%)', angle: -90, position: 'insideLeft' }}
+                        tick={{ fontSize: 12 }}
+                        domain={[0, 100]}
+                        tickFormatter={(v) => `${v}%`}
+                      />
+                      <RechartsTooltip
+                        formatter={(value) => [`${value.toFixed(2)}%`, '精度']}
+                        labelFormatter={(l) => `第 ${l} 轮`}
+                      />
+                      <Legend />
+                      {report.accuracy_chart_data?.experiments?.map((exp, idx) => (
+                        <Line
+                          key={exp.experiment_id}
+                          type="monotone"
+                          dataKey={exp.experiment_name}
+                          name={exp.experiment_name}
+                          stroke={COLORS[idx % COLORS.length]}
+                          strokeWidth={2.5}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -282,9 +307,14 @@ export default function ReportPreview() {
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                 三、通信效率对比
               </Typography>
-              <div className="chart-container" style={{ height: 350, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart key={`comm-${commChartData.length}`} data={commChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <div
+                key={`comm-chart-${chartKey}`}
+                className="chart-container"
+                style={{ height: 350, width: '100%', position: 'relative' }}
+              >
+                {!loading && commChartData.length > 0 && (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={commChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                     <XAxis
                       dataKey="name"
@@ -298,10 +328,11 @@ export default function ReportPreview() {
                       formatter={(value) => [`${value.toFixed(2)} MB`]}
                     />
                     <Legend />
-                    <Bar dataKey="单轮平均通信量" fill="#1976d2" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="总通信量" fill="#388e3c" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                      <Bar dataKey="单轮平均通信量" fill="#1976d2" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="总通信量" fill="#388e3c" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -314,9 +345,14 @@ export default function ReportPreview() {
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                   四、隐私开销对比
                 </Typography>
-                <div className="chart-container" style={{ height: 350, width: '100%' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart key={`privacy-${privacyChartData.length}`} data={privacyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <div
+                  key={`privacy-chart-${chartKey}`}
+                  className="chart-container"
+                  style={{ height: 350, width: '100%', position: 'relative' }}
+                >
+                  {!loading && privacyChartData.length > 0 && (
+                    <ResponsiveContainer width="100%" height={350}>
+                      <LineChart data={privacyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                       <XAxis
                         dataKey="round"
@@ -345,7 +381,8 @@ export default function ReportPreview() {
                         />
                       ))}
                     </LineChart>
-                  </ResponsiveContainer>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -394,8 +431,9 @@ export default function ReportPreview() {
           color="error"
           startIcon={<PictureAsPdfIcon />}
           onClick={handleDownloadPdf}
+          disabled={downloading}
         >
-          导出 PDF 报告
+          {downloading ? '导出中...' : '导出 PDF 报告'}
         </Button>
       </Paper>
     </Box>
