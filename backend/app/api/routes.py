@@ -707,3 +707,49 @@ def get_experiment_rounds(
     except Exception as e:
         logger.error(f"Failed to get rounds for experiment {experiment_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get rounds: {str(e)}")
+
+
+@router.get("/{experiment_id}/client-metrics")
+def get_experiment_client_metrics(
+    experiment_id: int,
+    db: Session = Depends(get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=1000)
+):
+    try:
+        exp = (
+            db.query(models.Experiment)
+            .filter(models.Experiment.id == experiment_id)
+            .first()
+        )
+        if not exp:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+
+        rounds = (
+            db.query(models.RoundResult)
+            .filter(models.RoundResult.experiment_id == experiment_id)
+            .order_by(models.RoundResult.round_num)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        client_metrics_history = []
+        for r in rounds:
+            if r.client_metrics:
+                client_metrics_history.append({
+                    'round_num': r.round_num,
+                    'client_metrics': r.client_metrics
+                })
+
+        return {
+            "experiment_id": experiment_id,
+            "num_clients": exp.num_clients,
+            "total_rounds": len(rounds),
+            "client_metrics_history": client_metrics_history
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get client metrics for experiment {experiment_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get client metrics: {str(e)}")

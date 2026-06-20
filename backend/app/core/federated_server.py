@@ -170,6 +170,25 @@ class FedServer:
             except Exception:
                 pass
 
+    def _send_client_metrics(self, round_num: int, client_metrics: dict):
+        data = {
+            'type': 'client_metrics',
+            'experiment_id': self.experiment_id,
+            'round': round_num,
+            'round_num': round_num,
+            'client_metrics': client_metrics
+        }
+        if self.ws_callback:
+            try:
+                self.ws_callback(data)
+            except Exception:
+                pass
+        if self.redis_callback:
+            try:
+                self.redis_callback(f"experiment:{self.experiment_id}:ws", data)
+            except Exception:
+                pass
+
     def _update_db_status(self, status: str, **fields):
         db = SessionLocal()
         try:
@@ -496,6 +515,31 @@ class FedServer:
                 client_accs = [s.get('accuracy', 0) for s in client_stats.values()]
                 client_losses = [s.get('loss', 0) for s in client_stats.values()]
 
+                model_size = get_model_size_bytes(self.global_model)
+                client_metrics = {}
+                for cid in range(self.num_clients):
+                    is_byzantine = cid in self.byzantine_client_ids
+                    participated = cid in client_updates
+                    if participated:
+                        stats = client_stats.get(cid, {})
+                        client_metrics[str(cid)] = {
+                            'client_id': cid,
+                            'loss': stats.get('loss', 0.0),
+                            'accuracy': stats.get('accuracy', 0.0),
+                            'communication_bytes': model_size * 2,
+                            'is_byzantine': is_byzantine,
+                            'participated': True
+                        }
+                    else:
+                        client_metrics[str(cid)] = {
+                            'client_id': cid,
+                            'loss': None,
+                            'accuracy': None,
+                            'communication_bytes': 0,
+                            'is_byzantine': is_byzantine,
+                            'participated': False
+                        }
+
                 epsilon_round = 0.0
                 if self.use_dp and self.privacy_accountant is not None:
                     steps_per_client = self.local_epochs
@@ -513,7 +557,8 @@ class FedServer:
                         self._log("Privacy budget exceeded! Stopping training.", "warning")
                         self._save_round(
                             round_num, global_acc, global_loss, client_accs, client_losses,
-                            client_ids, comm_bytes, epsilon_round, agg_info, round_start
+                            client_ids, comm_bytes, epsilon_round, agg_info, round_start,
+                            client_metrics
                         )
                         self._save_checkpoint(round_num)
                         self._update_db_status(
@@ -531,7 +576,8 @@ class FedServer:
                 detected = agg_info.get('detected_byzantine', 0)
                 self._save_round(
                     round_num, global_acc, global_loss, client_accs, client_losses,
-                    client_ids, comm_bytes, epsilon_round, agg_info, round_start
+                    client_ids, comm_bytes, epsilon_round, agg_info, round_start,
+                    client_metrics
                 )
 
                 self._save_checkpoint(round_num)
@@ -547,6 +593,8 @@ class FedServer:
                     byzantine_detected=detected,
                     byzantine_total=self.num_byzantine
                 )
+
+                self._send_client_metrics(round_num, client_metrics)
 
             self._log(f"\n=== Training Complete ===")
             final_acc = 0.0
@@ -582,7 +630,8 @@ class FedServer:
         comm_bytes: float,
         epsilon_round: float,
         agg_info: dict,
-        round_start: float
+        round_start: float,
+        client_metrics: dict = None
     ):
         round_time = time.time() - round_start
         data = {
@@ -595,6 +644,7 @@ class FedServer:
             'epsilon_consumed': epsilon_round,
             'byzantine_detected_count': agg_info.get('detected_byzantine', 0),
             'byzantine_total_count': self.num_byzantine,
+            'client_metrics': client_metrics,
             'timestamps': {
                 'round_time_seconds': round_time,
                 'aggregation_method': agg_info.get('method', 'unknown')

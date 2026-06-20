@@ -74,6 +74,7 @@ class RoundResult(Base):
 
     client_accuracies = Column(JSON, nullable=True)
     client_losses = Column(JSON, nullable=True)
+    client_metrics = Column(JSON, nullable=True)
 
     num_participants = Column(Integer, nullable=True)
     communication_bytes = Column(Float, default=0.0)

@@ -19,6 +19,7 @@ export const experimentApi = {
   resume: (id, config = null) => api.post(`/experiments/${id}/resume`, config),
   delete: (id) => api.delete(`/experiments/${id}`),
   getRounds: (id, params = {}) => api.get(`/experiments/${id}/rounds`, { params }),
+  getClientMetrics: (id, params = {}) => api.get(`/experiments/${id}/client-metrics`, { params }),
   compare: (ids) => api.get('/experiments/compare', { params: { ids: ids.join(',') } }),
   getTemplates: () => api.get('/experiments/templates'),
 }
