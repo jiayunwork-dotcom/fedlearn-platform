@@ -16,9 +16,10 @@ router = APIRouter(prefix="/api/experiments", tags=["experiments"])
 def _get_tasks():
     try:
         from app.worker.tasks import run_experiment_task, stop_experiment_task
+        logger.info(f"Celery tasks loaded successfully: run_experiment={run_experiment_task is not None}, stop_experiment={stop_experiment_task is not None}")
         return run_experiment_task, stop_experiment_task
     except Exception as e:
-        logger.warning(f"Celery tasks not available: {e}")
+        logger.error(f"Failed to load Celery tasks: {e}", exc_info=True)
         return None, None
 
 
@@ -162,9 +163,20 @@ def start_experiment(experiment_id: int, db: Session = Depends(get_db)):
             exp.error_message = "Celery worker is not available. Please check worker service."
             db.commit()
             db.refresh(exp)
+            logger.error(f"Cannot start experiment {experiment_id}: Celery tasks not loaded")
             raise HTTPException(status_code=503, detail="Celery worker is not available")
 
-        task = run_experiment_task.delay(experiment_id, config_dict)
+        logger.info(f"Dispatching experiment {experiment_id} to Celery queue...")
+        try:
+            task = run_experiment_task.delay(experiment_id, config_dict)
+            logger.info(f"Experiment {experiment_id} dispatched successfully, task_id={task.id}")
+        except Exception as e:
+            exp.status = "error"
+            exp.error_message = f"Failed to dispatch task: {str(e)}"
+            db.commit()
+            db.refresh(exp)
+            logger.error(f"Failed to dispatch experiment {experiment_id} to Celery: {e}", exc_info=True)
+            raise HTTPException(status_code=503, detail=f"Failed to dispatch task: {str(e)}")
 
         exp.celery_task_id = task.id
         db.commit()

@@ -58,6 +58,20 @@ export class ExperimentWebSocket {
     if (this.callbacks[type]) {
       this.callbacks[type](data)
     }
+    const onType = 'on' + type.charAt(0).toUpperCase() + type.slice(1)
+    if (this.callbacks[onType]) {
+      this.callbacks[onType](data)
+    }
+    if (data.status) {
+      const statusType = data.status
+      if (this.callbacks[statusType]) {
+        this.callbacks[statusType](data)
+      }
+      const onStatus = 'on' + statusType.charAt(0).toUpperCase() + statusType.slice(1)
+      if (this.callbacks[onStatus]) {
+        this.callbacks[onStatus](data)
+      }
+    }
   }
 
   scheduleReconnect() {

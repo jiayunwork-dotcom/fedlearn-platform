@@ -29,6 +29,11 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=30,
+    task_default_queue="celery",
+    task_routes={
+        "run_experiment": {"queue": "celery"},
+        "stop_experiment": {"queue": "celery"},
+    },
     broker_transport_options={
         "visibility_timeout": 3600,
         "max_retries": 30,

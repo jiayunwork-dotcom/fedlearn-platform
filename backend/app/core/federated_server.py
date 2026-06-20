@@ -98,8 +98,9 @@ class FedServer:
                 pass
 
     def _send_progress(self, status: str, **kwargs):
+        msg_type = status if status in ['round_complete', 'completed', 'error', 'initializing', 'training_round'] else 'progress'
         data = {
-            'type': 'progress',
+            'type': msg_type,
             'experiment_id': self.experiment_id,
             'round': self.current_round,
             'status': status,
