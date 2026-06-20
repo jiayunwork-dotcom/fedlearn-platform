@@ -72,6 +72,21 @@ def init_db():
                 db.rollback()
 
             try:
+                result = db.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='reports' AND column_name='pdf_size'"
+                ))
+                if result.fetchone() is None:
+                    db.execute(text(
+                        "ALTER TABLE reports ADD COLUMN pdf_size INTEGER"
+                    ))
+                    db.commit()
+                    logger.info("Added pdf_size column to reports table")
+            except Exception as e:
+                logger.warning(f"Migration check for pdf_size: {e}")
+                db.rollback()
+
+            try:
                 exp_count = db.query(models.Experiment).count()
                 logger.info(f"Database check: {exp_count} experiments found")
             except Exception as e:

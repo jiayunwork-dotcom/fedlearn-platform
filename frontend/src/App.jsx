@@ -6,9 +6,11 @@ import {
 } from '@mui/material'
 import HomeIcon from '@mui/icons-material/Home'
 import AddIcon from '@mui/icons-material/Add'
+import DescriptionIcon from '@mui/icons-material/Description'
 import Dashboard from './pages/Dashboard.jsx'
 import ExperimentDetail from './pages/ExperimentDetail.jsx'
 import ReportPreview from './pages/ReportPreview.jsx'
+import ReportCenter from './pages/ReportCenter.jsx'
 import CreateExperimentModal from './components/CreateExperimentModal.jsx'
 
 export default function App() {
@@ -34,6 +36,17 @@ export default function App() {
           >
             联邦学习安全聚合与模型训练实验平台
           </Typography>
+          <Tooltip title="报告中心">
+            <Button
+              color="inherit"
+              startIcon={<DescriptionIcon />}
+              variant="outlined"
+              sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', mr: 2 }}
+              onClick={() => navigate('/reports')}
+            >
+              报告中心
+            </Button>
+          </Tooltip>
           <Tooltip title="创建新实验">
             <Button
               color="inherit"
@@ -56,6 +69,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard onNewExperiment={() => setOpenCreateModal(true)} />} />
           <Route path="/experiment/:id" element={<ExperimentDetail />} />
+          <Route path="/reports" element={<ReportCenter />} />
           <Route path="/report/:id" element={<ReportPreview />} />
         </Routes>
       </Container>

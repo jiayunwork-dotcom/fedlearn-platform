@@ -197,7 +197,25 @@ class ReportResponse(BaseModel):
     communication_chart_data: ReportCommunicationChartData
     privacy_chart_data: Optional[ReportPrivacyChartData] = None
     conclusion_summary: str
+    pdf_size: Optional[int] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class ReportListItem(BaseModel):
+    id: int
+    title: str
+    experiment_ids: List[int]
+    status: str
+    pdf_size: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ReportListResponse(BaseModel):
+    total: int
+    reports: List[ReportListItem]

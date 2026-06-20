@@ -99,5 +99,6 @@ class Report(Base):
     conclusion_summary = Column(Text, nullable=True)
 
     report_data = Column(JSON, nullable=True)
+    pdf_size = Column(Integer, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

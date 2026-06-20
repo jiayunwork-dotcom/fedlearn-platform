@@ -203,8 +203,14 @@ def create_privacy_chart(privacy_data: Dict[str, Any]) -> Optional[bytes]:
     return buf.read()
 
 
-def generate_report_pdf(report_data: Dict[str, Any]) -> bytes:
-    """生成完整的报告PDF"""
+def generate_report_pdf(report_data: Dict[str, Any], sections: Optional[List[str]] = None) -> bytes:
+    """生成完整的报告PDF，可按章节筛选
+    sections: 可选的章节标识列表，可选值: overview, accuracy, communication, privacy, conclusion
+    如果 sections 为 None，则生成所有章节
+    """
+    if sections is None:
+        sections = ['overview', 'accuracy', 'communication', 'privacy', 'conclusion']
+
     buffer = io.BytesIO()
 
     doc = SimpleDocTemplate(
@@ -266,7 +272,7 @@ def generate_report_pdf(report_data: Dict[str, Any]) -> bytes:
     story.append(Spacer(1, 10))
 
     overview_data = report_data.get('overview_table', [])
-    if overview_data:
+    if overview_data and 'overview' in sections:
         story.append(Paragraph('一、实验概况', section_style))
 
         table_data = [
@@ -324,7 +330,7 @@ def generate_report_pdf(report_data: Dict[str, Any]) -> bytes:
         story.append(Spacer(1, 15))
 
     accuracy_data = report_data.get('accuracy_chart_data')
-    if accuracy_data:
+    if accuracy_data and 'accuracy' in sections:
         story.append(Paragraph('二、精度收敛对比', section_style))
         try:
             chart_bytes = create_accuracy_chart(accuracy_data)
@@ -336,7 +342,7 @@ def generate_report_pdf(report_data: Dict[str, Any]) -> bytes:
         story.append(Spacer(1, 10))
 
     comm_data = report_data.get('communication_chart_data')
-    if comm_data:
+    if comm_data and 'communication' in sections:
         story.append(Paragraph('三、通信效率对比', section_style))
         try:
             chart_bytes = create_communication_chart(comm_data)
@@ -348,7 +354,7 @@ def generate_report_pdf(report_data: Dict[str, Any]) -> bytes:
         story.append(Spacer(1, 10))
 
     privacy_data = report_data.get('privacy_chart_data')
-    if privacy_data and privacy_data.get('experiments'):
+    if privacy_data and privacy_data.get('experiments') and 'privacy' in sections:
         story.append(Paragraph('四、隐私开销对比', section_style))
         try:
             chart_bytes = create_privacy_chart(privacy_data)
@@ -361,7 +367,7 @@ def generate_report_pdf(report_data: Dict[str, Any]) -> bytes:
         story.append(Spacer(1, 10))
 
     conclusion = report_data.get('conclusion_summary', '')
-    if conclusion:
+    if conclusion and 'conclusion' in sections:
         story.append(Paragraph('五、结论摘要', section_style))
         story.append(Paragraph(conclusion, body_style))
 

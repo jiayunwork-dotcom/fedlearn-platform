@@ -25,12 +25,22 @@ export const experimentApi = {
 
 export const reportApi = {
   generate: (experimentIds) => api.post('/reports/generate', { experiment_ids: experimentIds }),
+  list: (params = {}) => api.get('/reports', { params }),
   get: (id) => api.get(`/reports/${id}`),
-  getPdfUrl: (id) => `${API_BASE_URL}/reports/${id}/pdf`,
-  downloadPdf: async (id) => {
+  delete: (id) => api.delete(`/reports/${id}`),
+  getPdfUrl: (id, sections = null) => {
+    let url = `${API_BASE_URL}/reports/${id}/pdf`
+    if (sections && sections.length > 0) {
+      url += `?sections=${sections.join(',')}`
+    }
+    return url
+  },
+  downloadPdf: async (id, sections = null) => {
     try {
+      const params = sections && sections.length > 0 ? { sections: sections.join(',') } : {}
       const response = await api.get(`/reports/${id}/pdf`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        params
       })
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
@@ -42,7 +52,7 @@ export const reportApi = {
       window.URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Download PDF failed:', error)
-      const url = `${API_BASE_URL}/reports/${id}/pdf`
+      const url = reportApi.getPdfUrl(id, sections)
       const link = document.createElement('a')
       link.href = url
       link.setAttribute('download', `report_${id}.pdf`)
