@@ -23,4 +23,14 @@ export const experimentApi = {
   getTemplates: () => api.get('/experiments/templates'),
 }
 
+export const reportApi = {
+  generate: (experimentIds) => api.post('/reports/generate', { experiment_ids: experimentIds }),
+  get: (id) => api.get(`/reports/${id}`),
+  getPdfUrl: (id) => `${API_BASE_URL}/reports/${id}/pdf`,
+  downloadPdf: (id) => {
+    const url = `${API_BASE_URL}/reports/${id}/pdf`
+    window.open(url, '_blank')
+  }
+}
+
 export default api

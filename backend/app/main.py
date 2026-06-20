@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import init_db
 from app.api.routes import router as experiments_router
 from app.api.websocket_routes import router as ws_router, start_redis_listener
+from app.api.report_routes import router as reports_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,6 +69,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(experiments_router)
 app.include_router(ws_router)
+app.include_router(reports_router)
 
 
 @app.get("/")

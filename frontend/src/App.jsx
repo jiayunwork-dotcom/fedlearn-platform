@@ -8,6 +8,7 @@ import HomeIcon from '@mui/icons-material/Home'
 import AddIcon from '@mui/icons-material/Add'
 import Dashboard from './pages/Dashboard.jsx'
 import ExperimentDetail from './pages/ExperimentDetail.jsx'
+import ReportPreview from './pages/ReportPreview.jsx'
 import CreateExperimentModal from './components/CreateExperimentModal.jsx'
 
 export default function App() {
@@ -55,6 +56,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard onNewExperiment={() => setOpenCreateModal(true)} />} />
           <Route path="/experiment/:id" element={<ExperimentDetail />} />
+          <Route path="/report/:id" element={<ReportPreview />} />
         </Routes>
       </Container>
 

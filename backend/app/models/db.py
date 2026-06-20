@@ -82,3 +82,22 @@ class RoundResult(Base):
     timestamps = Column(JSON, nullable=True)
 
     experiment = relationship("Experiment", back_populates="rounds")
+
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    experiment_ids = Column(JSON, nullable=False)
+    status = Column(String(50), default="generating")
+
+    overview_table = Column(JSON, nullable=True)
+    accuracy_chart_data = Column(JSON, nullable=True)
+    communication_chart_data = Column(JSON, nullable=True)
+    privacy_chart_data = Column(JSON, nullable=True)
+    conclusion_summary = Column(Text, nullable=True)
+
+    report_data = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

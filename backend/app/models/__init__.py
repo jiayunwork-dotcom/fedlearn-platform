@@ -1,4 +1,4 @@
-from .db import Experiment, RoundResult
+from .db import Experiment, RoundResult, Report
 from .nn_models import (
     create_model,
     get_model_params,
@@ -13,6 +13,7 @@ from .nn_models import (
 __all__ = [
     'Experiment',
     'RoundResult',
+    'Report',
     'create_model',
     'get_model_params',
     'set_model_params',

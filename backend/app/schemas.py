@@ -143,3 +143,61 @@ class ProgressUpdate(BaseModel):
     global_loss: Optional[float]
     epsilon_consumed: float
     message: Optional[str] = None
+
+
+class GenerateReportRequest(BaseModel):
+    experiment_ids: List[int]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "experiment_ids": [1, 2, 3]
+            }
+        }
+
+
+class ReportOverviewItem(BaseModel):
+    experiment_id: int
+    experiment_name: str
+    algorithm: str
+    dataset: str
+    num_clients: int
+    num_rounds: int
+    final_accuracy: Optional[float]
+    total_communication: float
+    duration_seconds: Optional[float]
+    avg_round_accuracy_improvement: Optional[float]
+    accuracy_variance: Optional[float]
+    convergence_round: Optional[int]
+
+
+class ReportAccuracyChartData(BaseModel):
+    rounds: List[int]
+    experiments: List[dict]
+
+
+class ReportCommunicationChartData(BaseModel):
+    experiment_names: List[str]
+    avg_communication_per_round: List[float]
+    total_communication: List[float]
+
+
+class ReportPrivacyChartData(BaseModel):
+    rounds: List[int]
+    experiments: List[dict]
+
+
+class ReportResponse(BaseModel):
+    id: int
+    title: str
+    experiment_ids: List[int]
+    status: str
+    overview_table: List[ReportOverviewItem]
+    accuracy_chart_data: ReportAccuracyChartData
+    communication_chart_data: ReportCommunicationChartData
+    privacy_chart_data: Optional[ReportPrivacyChartData] = None
+    conclusion_summary: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

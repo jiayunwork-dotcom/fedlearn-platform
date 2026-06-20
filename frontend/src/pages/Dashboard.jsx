@@ -3,16 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import {
   Box, Typography, Paper, Grid, Card, CardContent,
   Chip, Stack, Button, IconButton, Tooltip, LinearProgress,
-  Alert, Snackbar
+  Alert, Snackbar, Checkbox
 } from '@mui/material'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import StopIcon from '@mui/icons-material/Stop'
 import DeleteIcon from '@mui/icons-material/Delete'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
+import AssessmentIcon from '@mui/icons-material/Assessment'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { experimentApi } from '../services/api'
+import { experimentApi, reportApi } from '../services/api'
 import AccuracyChart from '../components/AccuracyChart.jsx'
 import CompareExperimentsModal from '../components/CompareExperimentsModal.jsx'
 
@@ -108,6 +109,30 @@ export default function Dashboard({ onNewExperiment }) {
     })
   }
 
+  const completedSelectedCount = experiments
+    .filter(e => selectedIds.includes(e.id) && e.status === 'completed')
+    .length
+
+  const canGenerateReport = completedSelectedCount >= 2 && completedSelectedCount <= 5
+
+  const handleGenerateReport = async () => {
+    const completedIds = experiments
+      .filter(e => selectedIds.includes(e.id) && e.status === 'completed')
+      .map(e => e.id)
+
+    if (completedIds.length < 2 || completedIds.length > 5) {
+      showSnackbar('请选择2-5个已完成的实验生成报告', 'warning')
+      return
+    }
+
+    try {
+      const res = await reportApi.generate(completedIds)
+      navigate(`/report/${res.data.id}`)
+    } catch (e) {
+      showSnackbar(e.response?.data?.detail || '生成报告失败', 'error')
+    }
+  }
+
   const runningCount = experiments.filter(e => e.status === 'running').length
   const completedCount = experiments.filter(e => e.status === 'completed').length
   const avgAccuracy = experiments
@@ -157,7 +182,8 @@ export default function Dashboard({ onNewExperiment }) {
           <Typography variant="h6" sx={{ fontWeight: 600 }}>实验列表</Typography>
           {selectedIds.length > 0 && (
             <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-              已选择 {selectedIds.length} 个实验进行对比
+              已选择 {selectedIds.length} 个实验
+              {completedSelectedCount > 0 && `（已完成 ${completedSelectedCount} 个）`}
             </Typography>
           )}
         </Box>
@@ -169,6 +195,15 @@ export default function Dashboard({ onNewExperiment }) {
             onClick={() => setCompareOpen(true)}
           >
             对比实验
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={<AssessmentIcon />}
+            disabled={!canGenerateReport}
+            onClick={handleGenerateReport}
+          >
+            生成对比报告
           </Button>
           <Button variant="contained" onClick={onNewExperiment}>
             + 创建新实验
@@ -200,13 +235,24 @@ export default function Dashboard({ onNewExperiment }) {
             >
               <CardContent sx={{ p: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Box sx={{ flex: 1, minWidth: 0, mr: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {exp.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      #{exp.id}
-                    </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, flex: 1, minWidth: 0, mr: 2 }}>
+                    <Checkbox
+                      checked={selectedIds.includes(exp.id)}
+                      onChange={(e) => {
+                        e.stopPropagation()
+                        toggleSelect(exp.id)
+                      }}
+                      size="small"
+                      sx={{ p: 0.5, mt: -0.5 }}
+                    />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {exp.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        #{exp.id}
+                      </Typography>
+                    </Box>
                   </Box>
                   <Chip
                     label={STATUS_TEXT[exp.status] || exp.status}
